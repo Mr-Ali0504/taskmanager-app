@@ -1,0 +1,84 @@
+# =============================================================================
+# Docker Compose — Runs all 3 services together locally
+# Reference: https://docs.docker.com/compose/
+#
+# Services defined here:
+#   mongo    — MongoDB database (persistent storage)
+#   backend  — Node.js Express REST API
+#   frontend — React app served by Nginx
+#
+# Run with:  docker-compose up --build
+# Stop with: docker-compose down
+# =============================================================================
+
+version: '3.8'
+
+services:
+
+  # ─── MongoDB Database ───────────────────────────────────────────────────────
+  # Reference: https://hub.docker.com/_/mongo
+  mongo:
+    image: mongo:7          # Official MongoDB image, version 7
+    container_name: taskmanager-mongo
+    restart: unless-stopped  # Restart if it crashes, but not if manually stopped
+    ports:
+      - "27017:27017"        # Expose so you can connect with MongoDB Compass locally
+    volumes:
+      # Named volume persists data between docker-compose down/up
+      # Without this, all tasks would be deleted when the container stops!
+      - mongo_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: taskmanager  # Creates this database on first start
+    networks:
+      - taskmanager-net
+
+  # ─── Backend — Node.js API ──────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      target: production     # Uses the 'production' stage of the multi-stage Dockerfile
+    container_name: taskmanager-backend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      NODE_ENV: development
+      PORT: 5000
+      APP_VERSION: "1.0.0"
+      # 'mongo' is the service name above — Docker's internal DNS resolves it
+      MONGO_URI: mongodb://mongo:27017/taskmanager
+    depends_on:
+      - mongo                # Wait for mongo to start before starting backend
+    networks:
+      - taskmanager-net
+
+  # ─── Frontend — React + Nginx ───────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      target: production
+      args:
+        # Inject the API URL at build time (Vite bakes it into the JS bundle)
+        # In Docker, the frontend container talks to 'backend' service name
+        # But from the BROWSER, it needs the host machine's IP/port
+        # For local dev, we use localhost:5000
+        VITE_API_URL: ""    # Empty = uses relative URL (works with Nginx proxy config)
+    container_name: taskmanager-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"            # App available at http://localhost:3000
+    depends_on:
+      - backend
+    networks:
+      - taskmanager-net
+
+# ─── Named Volumes ─────────────────────────────────────────────────────────────
+# Volumes persist data independently of containers
+volumes:
+  mongo_data:
+
+# ─── Networks ──────────────────────────────────────────────────────────────────
+# Custom network so containers can talk to each other by service name
+networks:
+  taskmanager-net:
+    driver: bridge

@@ -1,0 +1,31 @@
+# ─── Dependencies ─────────────────────────────────────────────────────────────
+node_modules/
+
+# ─── Environment Files ────────────────────────────────────────────────────────
+# NEVER commit .env files — they contain secrets like DB passwords and API keys!
+# The .env.example files (without real values) ARE committed as templates.
+.env
+backend/.env
+frontend/.env
+
+# ─── Build Outputs ────────────────────────────────────────────────────────────
+frontend/dist/
+frontend/build/
+
+# ─── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+
+# ─── OS Files ─────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ─── IDE Files ────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+
+# ─── Docker ───────────────────────────────────────────────────────────────────
+# Don't ignore docker-compose.yml — it's needed for deployment
+# But local override files can be ignored
+docker-compose.override.yml
