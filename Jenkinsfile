@@ -24,7 +24,7 @@ pipeline {
     // These are available to all stages as environment variables
     environment {
         // AWS ECR Registry configuration
-        AWS_ACCOUNT_ID   = 'YOUR_AWS_ACCOUNT_ID' // Replace with your actual AWS Account ID
+        AWS_ACCOUNT_ID   = '289127796650'
         AWS_REGION       = 'eu-north-1'
         ECR_REGISTRY     = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
 
@@ -35,6 +35,12 @@ pipeline {
         // Image tag — uses the Jenkins build number for versioning
         // e.g., build #42 produces tag '42'
         IMAGE_TAG        = "${env.BUILD_NUMBER}"
+
+        // Target servers for deployment
+        // We are using the Agent instance as our "Dev" environment for now
+        DEV_SERVER_IP    = '13.61.10.174'
+        STAGING_SERVER_IP = '13.61.10.174' // Using same for lab
+        PROD_SERVER_IP   = '13.61.10.174' // Using same for lab
 
         // SSH credentials for deploying to EC2 (stored in Jenkins)
         EC2_SSH_KEY      = credentials('ec2-ssh-key')
