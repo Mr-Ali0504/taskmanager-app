@@ -76,40 +76,47 @@ async function analyticsFor(account: AccountRow, days: number): Promise<AccountA
   }
 }
 
+export async function accountAnalytics(days: number): Promise<AccountAnalytics[]> {
+  const all = db.select().from(schema.accounts).orderBy(schema.accounts.createdAt).all();
+  return Promise.all(all.map((a) => analyticsFor(a, days)));
+}
+
+/** Comments from each channel's five most recent videos, most-liked first. */
+export async function topComments(): Promise<CommentsResponse> {
+  const all = db.select().from(schema.accounts).all();
+  const errors: CommentsResponse['errors'] = [];
+  const perAccount = await Promise.all(
+    all.map(async (account): Promise<RemoteComment[]> => {
+      try {
+        const videos = (await recentVideos(account)).slice(0, 5);
+        const lists = await Promise.all(
+          videos.map((video) =>
+            cached(`comments:${account.id}:${video.id}`, () => adapterFor(account).listComments(account, video.id, 10))
+              .then((comments) => comments.map((c) => ({ ...c, accountId: account.id, platform: account.platform, videoId: video.id, videoTitle: video.title, videoUrl: video.url })))
+              .catch((): RemoteComment[] => []), // e.g. comments turned off on one video
+          ),
+        );
+        return lists.flat();
+      } catch (e) {
+        flagReauth(account, e);
+        errors.push({ accountId: account.id, message: message(e) });
+        return [];
+      }
+    }),
+  );
+  const comments = perAccount.flat().sort((a, b) => b.likes - a.likes || b.publishedAt.localeCompare(a.publishedAt));
+  return { comments, errors };
+}
+
 export function registerInsights(app: FastifyInstance) {
   app.get<{ Querystring: { days?: string; refresh?: string } }>('/api/analytics', async (req) => {
     if (req.query.refresh) clearCache();
-    const days = [7, 28].includes(Number(req.query.days)) ? Number(req.query.days) : 28;
-    const all = db.select().from(schema.accounts).orderBy(schema.accounts.createdAt).all();
-    return Promise.all(all.map((a) => analyticsFor(a, days)));
+    return accountAnalytics([7, 28].includes(Number(req.query.days)) ? Number(req.query.days) : 28);
   });
 
-  // Top comments from each channel's five most recent videos, most-liked first.
   app.get<{ Querystring: { refresh?: string } }>('/api/comments', async (req): Promise<CommentsResponse> => {
     if (req.query.refresh) clearCache();
-    const all = db.select().from(schema.accounts).all();
-    const errors: CommentsResponse['errors'] = [];
-    const perAccount = await Promise.all(
-      all.map(async (account): Promise<RemoteComment[]> => {
-        try {
-          const videos = (await recentVideos(account)).slice(0, 5);
-          const lists = await Promise.all(
-            videos.map((video) =>
-              cached(`comments:${account.id}:${video.id}`, () => adapterFor(account).listComments(account, video.id, 10))
-                .then((comments) => comments.map((c) => ({ ...c, accountId: account.id, platform: account.platform, videoId: video.id, videoTitle: video.title, videoUrl: video.url })))
-                .catch((): RemoteComment[] => []), // e.g. comments turned off on one video
-            ),
-          );
-          return lists.flat();
-        } catch (e) {
-          flagReauth(account, e);
-          errors.push({ accountId: account.id, message: message(e) });
-          return [];
-        }
-      }),
-    );
-    const comments = perAccount.flat().sort((a, b) => b.likes - a.likes || b.publishedAt.localeCompare(a.publishedAt));
-    return { comments, errors };
+    return topComments();
   });
 
   app.post('/api/comments/reply', async (req, reply) => {

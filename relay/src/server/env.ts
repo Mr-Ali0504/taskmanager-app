@@ -42,5 +42,9 @@ export const env = {
   },
 };
 
+/** The assistant needs an Anthropic API key (ANTHROPIC_API_KEY). The SDK reads it from the environment itself. */
+export const agentConfigured = () => Boolean(process.env.ANTHROPIC_API_KEY);
+export const agentModel = () => process.env.AGENT_MODEL || 'claude-opus-5-5';
+
 export const googleConfigured = () => Boolean(env.google.clientId && env.google.clientSecret);
 export const metaConfigured = () => Boolean(env.meta.appId && env.meta.appSecret);

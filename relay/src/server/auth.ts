@@ -3,7 +3,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { safeEqual, sign } from './crypto';
-import { env, googleConfigured, metaConfigured } from './env';
+import { agentConfigured, env, googleConfigured, metaConfigured } from './env';
 import type { SessionInfo } from '../shared/types';
 
 const COOKIE = 'relay_session';
@@ -41,6 +41,7 @@ export function registerAuth(app: FastifyInstance) {
     authRequired: Boolean(env.appPassword),
     authenticated: isAuthenticated(req),
     providers: { google: googleConfigured(), meta: metaConfigured() },
+    assistant: agentConfigured(),
   }));
 
   app.post('/api/login', async (req, reply: FastifyReply) => {

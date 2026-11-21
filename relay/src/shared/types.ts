@@ -5,6 +5,34 @@ export interface SessionInfo {
   authRequired: boolean;
   authenticated: boolean;
   providers: { google: boolean; meta: boolean };
+  /** True when an Anthropic API key is configured, so the assistant can be used. */
+  assistant: boolean;
+}
+
+// ── Assistant ────────────────────────────────────────────────────────────────
+
+/** Something the assistant wants to do that changes the outside world. It waits for the user's decision. */
+export type PendingAction =
+  | {
+      id: string;
+      kind: 'post';
+      videoName: string;
+      title: string;
+      description: string;
+      hashtags: string[];
+      scheduledAt: number | null;
+      channels: { name: string; platform: Platform }[];
+    }
+  | { id: string; kind: 'reply'; channel: { name: string; platform: Platform }; commentAuthor: string; commentText: string; videoTitle: string; text: string };
+
+export interface AssistantTurn {
+  conversationId: string;
+  /** What the assistant said this turn, in order. */
+  texts: string[];
+  /** Short notes on what it looked up or did, e.g. "Read comments". */
+  steps: string[];
+  /** Actions awaiting approval. While any are pending the conversation is paused. */
+  pending: PendingAction[];
 }
 
 export interface AccountDTO {

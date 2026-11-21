@@ -59,36 +59,52 @@ function loadPosts(ids?: string[]): PostDTO[] {
   });
 }
 
+/** A problem with the request that the user can fix (as opposed to a server fault). */
+export class PostError extends Error {}
+
+/** Validates and stores a post, then starts publishing unless it is scheduled. Used by the API and by the assistant. */
+export function createPost(input: unknown): PostDTO {
+  const body = createSchema.parse(input);
+  const video = db.select().from(videos).where(eq(videos.id, body.videoId)).get();
+  if (!video) throw new PostError('That video is no longer in the library.');
+
+  const prepared: { account: typeof accounts.$inferSelect; fields: AnyFields }[] = [];
+  for (const t of body.targets) {
+    const account = db.select().from(accounts).where(eq(accounts.id, t.accountId)).get();
+    if (!account) throw new PostError('One of the selected channels was disconnected.');
+    if (account.status !== 'connected') throw new PostError(`${account.name} needs to be reconnected first.`);
+    const fields = fieldSchemas[account.platform].parse(t.fields);
+    const blocking = validateFields(account.platform, fields, videoMeta(video)).find((i) => i.level === 'error');
+    if (blocking) throw new PostError(`${account.name}: ${blocking.message}`);
+    prepared.push({ account, fields });
+  }
+
+  const scheduled = body.scheduledAt != null && body.scheduledAt > Date.now() + 30_000;
+  const postId = newId();
+  db.transaction((tx) => {
+    tx.insert(posts)
+      .values({ id: postId, videoId: video.id, title: body.title || video.name, status: scheduled ? 'scheduled' : 'publishing', scheduledAt: scheduled ? body.scheduledAt : null, draft: body.draft ?? null, createdAt: Date.now() })
+      .run();
+    for (const { account, fields } of prepared)
+      tx.insert(targets).values({ id: newId(), postId, accountId: account.id, accountName: account.name, platform: account.platform, fields }).run();
+    if (body.draftId) tx.delete(schema.drafts).where(eq(schema.drafts.id, body.draftId)).run();
+  });
+  if (!scheduled) void runPost(postId);
+  return loadPosts([postId])[0];
+}
+
+export { loadPosts };
+
 export function registerPosts(app: FastifyInstance) {
   app.get('/api/posts', async () => loadPosts());
 
   app.post('/api/posts', async (req, reply) => {
-    const body = createSchema.parse(req.body);
-    const video = db.select().from(videos).where(eq(videos.id, body.videoId)).get();
-    if (!video) return reply.code(400).send({ error: 'That video is no longer in the library.' });
-
-    const prepared: { account: typeof accounts.$inferSelect; fields: AnyFields }[] = [];
-    for (const t of body.targets) {
-      const account = db.select().from(accounts).where(eq(accounts.id, t.accountId)).get();
-      if (!account) return reply.code(400).send({ error: 'One of the selected channels was disconnected.' });
-      const fields = fieldSchemas[account.platform].parse(t.fields);
-      const blocking = validateFields(account.platform, fields, videoMeta(video)).find((i) => i.level === 'error');
-      if (blocking) return reply.code(400).send({ error: `${account.name}: ${blocking.message}` });
-      prepared.push({ account, fields });
+    try {
+      return createPost(req.body);
+    } catch (e) {
+      if (e instanceof PostError) return reply.code(400).send({ error: e.message });
+      throw e;
     }
-
-    const scheduled = body.scheduledAt != null && body.scheduledAt > Date.now() + 30_000;
-    const postId = newId();
-    db.transaction((tx) => {
-      tx.insert(posts)
-        .values({ id: postId, videoId: video.id, title: body.title || video.name, status: scheduled ? 'scheduled' : 'publishing', scheduledAt: scheduled ? body.scheduledAt : null, draft: body.draft ?? null, createdAt: Date.now() })
-        .run();
-      for (const { account, fields } of prepared)
-        tx.insert(targets).values({ id: newId(), postId, accountId: account.id, accountName: account.name, platform: account.platform, fields }).run();
-      if (body.draftId) tx.delete(schema.drafts).where(eq(schema.drafts.id, body.draftId)).run();
-    });
-    if (!scheduled) void runPost(postId);
-    return loadPosts([postId])[0];
   });
 
   // Retry failed destinations, or publish a scheduled post right away.

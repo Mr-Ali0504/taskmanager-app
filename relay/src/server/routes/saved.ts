@@ -4,7 +4,9 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { DraftDTO, GroupDTO, SnippetDTO } from '../../shared/types';
 import { newId } from '../crypto';
+import { AgentError, decide, describeAgentError, sendMessage } from '../agent';
 import { db, schema } from '../db';
+import { agentConfigured } from '../env';
 
 const { groups, snippets, drafts } = schema;
 const name = z.string().trim().min(1, 'Give it a name.').max(80);
@@ -49,5 +51,30 @@ export function registerSaved(app: FastifyInstance) {
   app.delete<IdParams>('/api/drafts/:id', async (req) => {
     db.delete(drafts).where(eq(drafts.id, req.params.id)).run();
     return { ok: true };
+  });
+
+  // ── Assistant ──
+  const notConfigured = { error: 'The assistant needs an Anthropic API key. Add ANTHROPIC_API_KEY to .env and restart.' };
+  app.post('/api/assistant/message', async (req, reply) => {
+    if (!agentConfigured()) return reply.code(400).send(notConfigured);
+    const body = z.object({ conversationId: z.string().nullish(), message: z.string().trim().min(1).max(8000), timeZone: z.string().max(64).default('UTC') }).parse(req.body);
+    try {
+      return await sendMessage(body.conversationId, body.message, body.timeZone);
+    } catch (e) {
+      if (!(e instanceof AgentError)) req.log.error(e);
+      const { status, message } = describeAgentError(e);
+      return reply.code(status).send({ error: message });
+    }
+  });
+  app.post('/api/assistant/decide', async (req, reply) => {
+    if (!agentConfigured()) return reply.code(400).send(notConfigured);
+    const body = z.object({ conversationId: z.string(), approved: z.array(z.string()) }).parse(req.body);
+    try {
+      return await decide(body.conversationId, body.approved);
+    } catch (e) {
+      if (!(e instanceof AgentError)) req.log.error(e);
+      const { status, message } = describeAgentError(e);
+      return reply.code(status).send({ error: message });
+    }
   });
 }

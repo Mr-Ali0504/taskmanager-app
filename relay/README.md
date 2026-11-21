@@ -7,6 +7,7 @@ Upload a video once and publish it to **YouTube, Instagram and Facebook** in one
 | Screen | What you get |
 |---|---|
 | **Dashboard** | Total audience, views, what is scheduled next, recent posts, and anything that needs attention (failed uploads, lost connections). |
+| **Assistant** | Tell it in plain words what to post, where and when, or ask about comments and numbers. It looks things up itself and shows you each post or reply for approval before anything goes out. Needs an Anthropic API key. |
 | **Publish** | Pick a video, tick the channels it should go to, write a title, description and hashtags once. Each platform gets the fields it accepts, with live counters and warnings. Publish now, schedule, or save as a draft. |
 | **Calendar** | Month view of scheduled and published posts. Pick a day to schedule a post for it. |
 | **Posts** | Upload progress per channel, links to the published videos, retry for anything that failed, drafts, search, and "Post again" to reuse an earlier post. |
@@ -99,6 +100,16 @@ Things to know:
 - While the Meta app is in development mode it works for accounts that have a role on the app (you). That is enough for personal use. To let other people connect, Meta requires App Review for the permissions the app requests.
 - Meta redirects only to HTTPS addresses, except `localhost`.
 - Instagram needs MP4 or MOV (H.264 video, AAC audio).
+
+## The assistant
+
+Add `ANTHROPIC_API_KEY` to `.env` (create a key in the Claude Console) and restart. Then open **Assistant** and type things like "post my newest video to all Instagram accounts tomorrow at 6pm" or "show me comments worth replying to and draft replies".
+
+- It can read your channels, library, posts, statistics and comments on its own.
+- Publishing and replying are only ever **proposed**. You see exactly what will go out and click Approve or Decline. This is deliberate: comments are written by strangers, and the approval step means text in a comment can never make the app post something by itself.
+- Videos must be in the Library first; the assistant picks from there.
+- Conversations are kept in memory and reset when the server restarts.
+- Requests go to Anthropic's API and are billed to your account. Treat the key like a password: keep it in `.env` only.
 
 ## Good to know
 

@@ -1,4 +1,4 @@
-import { BarChart3, CalendarDays, Clapperboard, LayoutDashboard, ListChecks, LogOut, MessageSquare, Moon, Radio, Send, Sun } from 'lucide-react';
+import { BarChart3, CalendarDays, Clapperboard, LayoutDashboard, ListChecks, Sparkles, LogOut, MessageSquare, Moon, Radio, Send, Sun } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Fragment, useCallback, useEffect, useState, type FormEvent } from 'react';
 import { actions, useAccounts, usePosts, useSession } from './api';
@@ -6,6 +6,7 @@ import { Button, Card, ErrorNote, inputClass, Spinner, useToast } from './compon
 import { emptyDraft, type Draft } from './draft';
 import { cx } from './lib';
 import { Analytics } from './pages/Analytics';
+import { Assistant, emptyChat, type ChatState } from './pages/Assistant';
 import { Calendar } from './pages/Calendar';
 import { Channels } from './pages/Channels';
 import { Comments } from './pages/Comments';
@@ -16,6 +17,7 @@ import { Posts } from './pages/Posts';
 
 const NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, section: '' },
+  { id: 'assistant', label: 'Assistant', icon: Sparkles, section: '' },
   { id: 'compose', label: 'Publish', icon: Send, section: 'Content' },
   { id: 'calendar', label: 'Calendar', icon: CalendarDays, section: 'Content' },
   { id: 'posts', label: 'Posts', icon: ListChecks, section: 'Content' },
@@ -82,6 +84,7 @@ export function App() {
   const toast = useToast();
   const [route, setRoute] = useState<Route>(currentRoute);
   const [draft, setDraft] = useState<Draft>(emptyDraft);
+  const [chat, setChat] = useState<ChatState>(emptyChat);
   const [theme, setTheme] = useState(document.documentElement.dataset.theme ?? 'light');
 
   useEffect(() => {
@@ -139,6 +142,7 @@ export function App() {
 
   const page = {
     dashboard: <Dashboard go={go} />,
+    assistant: <Assistant session={session.data!} chat={chat} setChat={setChat} />,
     compose: <Compose draft={draft} setDraft={setDraft} go={go} />,
     calendar: <Calendar go={go} setDraft={setDraft} />,
     posts: <Posts go={go} setDraft={setDraft} />,
