@@ -1,0 +1,15 @@
+# docker compose up -d --build   ->  http://localhost:8787
+services:
+  relay:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    env_file: .env
+    environment:
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8787}
+    volumes:
+      - relay_data:/data   # database, uploaded videos, encryption key
+
+volumes:
+  relay_data:

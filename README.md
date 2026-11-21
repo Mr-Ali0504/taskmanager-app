@@ -101,3 +101,9 @@ npm run dev
 5. **Deploy Dev** — Auto-deploy to dev server
 6. **Deploy Staging** — Requires manual approval in Jenkins
 7. **Deploy Production** — Requires manual approval in Jenkins
+
+---
+
+## Relay Studio (separate app)
+
+The `relay/` folder holds a separate, self-contained application for publishing videos to YouTube, Instagram and Facebook and tracking their performance. It does not use the task manager code above. See [relay/README.md](relay/README.md).
