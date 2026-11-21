@@ -109,6 +109,7 @@ export function registerAccounts(app: FastifyInstance) {
 
   app.delete<{ Params: { id: string } }>('/api/accounts/:id', async (req) => {
     db.delete(accounts).where(eq(accounts.id, req.params.id)).run();
+    db.delete(schema.snapshots).where(eq(schema.snapshots.accountId, req.params.id)).run();
     clearCache();
     return { ok: true };
   });

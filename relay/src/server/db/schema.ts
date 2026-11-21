@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, uniqueIndex, index } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, uniqueIndex, index, primaryKey } from 'drizzle-orm/sqlite-core';
 import type { AnyFields, Platform } from '../../shared/platforms';
 import type { PostStatus, TargetStatus } from '../../shared/types';
 
@@ -44,6 +44,8 @@ export const posts = sqliteTable(
     title: text('title').notNull(),
     status: text('status').$type<PostStatus>().notNull(),
     scheduledAt: integer('scheduled_at'),
+    /** The composer state this post was made from, so it can be posted again later. */
+    draft: text('draft', { mode: 'json' }).$type<unknown>(),
     createdAt: integer('created_at').notNull(),
   },
   (t) => [index('posts_status').on(t.status)],
@@ -66,6 +68,43 @@ export const targets = sqliteTable(
     error: text('error'),
   },
   (t) => [index('targets_post').on(t.postId)],
+);
+
+/** A named set of channels, e.g. every account of one brand, selectable in one click. */
+export const groups = sqliteTable('groups', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  accountIds: text('account_ids', { mode: 'json' }).$type<string[]>().notNull(),
+  createdAt: integer('created_at').notNull(),
+});
+
+/** Reusable text: a hashtag set or a caption template. */
+export const snippets = sqliteTable('snippets', {
+  id: text('id').primaryKey(),
+  kind: text('kind').$type<'hashtags' | 'text'>().notNull(),
+  name: text('name').notNull(),
+  content: text('content').notNull(),
+  createdAt: integer('created_at').notNull(),
+});
+
+/** An unfinished post saved from the composer. */
+export const drafts = sqliteTable('drafts', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  data: text('data', { mode: 'json' }).$type<unknown>().notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
+
+/** One audience reading per channel per day. Platforms do not give follower history, so the app keeps its own. */
+export const snapshots = sqliteTable(
+  'snapshots',
+  {
+    accountId: text('account_id').notNull(),
+    date: text('date').notNull(),
+    followers: integer('followers'),
+    totalViews: integer('total_views'),
+  },
+  (t) => [primaryKey({ columns: [t.accountId, t.date] })],
 );
 
 export type AccountRow = typeof accounts.$inferSelect;

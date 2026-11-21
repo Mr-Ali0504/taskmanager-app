@@ -2,8 +2,10 @@
 import { deriveFields, parseHashtags, type AnyFields, type BaseContent, type FacebookFields, type InstagramFields, type Platform, type VideoMeta, type YouTubeFields } from '../shared/platforms';
 
 export interface Draft {
+  /** Set when this draft has been saved, so saving again updates the same one. */
+  draftId: string | null;
   videoId: string | null;
-  /** null until the user touches the selection; until then every connected channel is selected. */
+  /** null until the user touches the selection; until then the channels used last time are ticked. */
   accountIds: string[] | null;
   title: string;
   text: string;
@@ -23,6 +25,7 @@ export interface Draft {
 }
 
 export const emptyDraft = (): Draft => ({
+  draftId: null,
   videoId: null,
   accountIds: null,
   title: '',
@@ -65,4 +68,37 @@ export function seedOverrides(platform: Platform, d: Draft, video: VideoMeta | n
   if (platform === 'instagram') return { ...d.overrides, instagram: { caption: (f as InstagramFields).caption } };
   const fb = f as FacebookFields;
   return { ...d.overrides, facebook: { title: fb.title, description: fb.description } };
+}
+
+/** Rebuilds a composer draft from saved data (a draft, or an earlier post), tolerating older shapes. */
+export function restoreDraft(data: unknown, keep: Partial<Draft> = {}): Draft {
+  const empty = emptyDraft();
+  const d = (data && typeof data === 'object' ? data : {}) as Partial<Draft>;
+  return {
+    ...empty,
+    ...d,
+    custom: { ...d.custom },
+    overrides: { ...empty.overrides, ...d.overrides },
+    youtube: { ...empty.youtube, ...d.youtube },
+    instagram: { ...empty.instagram, ...d.instagram },
+    facebook: { ...empty.facebook, ...d.facebook },
+    ...keep,
+  };
+}
+
+const LAST_KEY = 'relay-last-channels';
+export function loadLastSelection(): string[] {
+  try {
+    const value = JSON.parse(localStorage.getItem(LAST_KEY) ?? '[]');
+    return Array.isArray(value) ? value.filter((v) => typeof v === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+export function saveLastSelection(ids: string[]) {
+  try {
+    localStorage.setItem(LAST_KEY, JSON.stringify(ids));
+  } catch {
+    /* storage unavailable */
+  }
 }

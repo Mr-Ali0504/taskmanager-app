@@ -1,5 +1,5 @@
 // The publish screen: pick a video, write once, check what each platform will receive, send everywhere.
-import { CalendarClock, Check, CheckCircle2, Film, Radio, Send, Upload, X } from 'lucide-react';
+import { CalendarClock, CheckCircle2, Film, Radio, Save, Send, Upload, X } from 'lucide-react';
 import { useRef, useState, type Dispatch, type DragEvent, type ReactNode, type SetStateAction } from 'react';
 import {
   countHashtags, hasErrors, isYouTubeShort, LIMITS, PLATFORM_INFO, PLATFORMS, validateFields, youtubeTagsLength, YOUTUBE_CATEGORIES,
@@ -7,9 +7,11 @@ import {
 } from '../../shared/platforms';
 import type { AccountDTO, VideoDTO } from '../../shared/types';
 import { actions, uploadVideo, useAccounts, useAction, useVideos } from '../api';
+import { ChannelPicker } from '../components/ChannelPicker';
+import { SnippetMenu } from '../components/SnippetMenu';
 import type { Route } from '../App';
 import { Avatar, Badge, Button, Card, EmptyState, ErrorNote, Field, inputClass, IssueList, PageHeader, PlatformIcon, Segmented, Spinner, Switch, useToast } from '../components/ui';
-import { emptyDraft, fieldsFor, seedOverrides, type Draft } from '../draft';
+import { emptyDraft, fieldsFor, loadLastSelection, saveLastSelection, seedOverrides, type Draft } from '../draft';
 import { cx, formatBytes, formatDuration, orientation, toLocalInput } from '../lib';
 
 type SetDraft = Dispatch<SetStateAction<Draft>>;
@@ -263,7 +265,8 @@ export function Compose({ draft, setDraft, go }: { draft: Draft; setDraft: SetDr
   const accounts = useAccounts();
   const videos = useVideos();
   const toast = useToast();
-  const create = useAction(actions.createPost, ['posts']);
+  const create = useAction(actions.createPost, ['posts', 'drafts']);
+  const saveDraft = useAction(actions.saveDraft, ['drafts']);
 
   if (accounts.isLoading || videos.isLoading) return <Spinner />;
   if (accounts.isError || videos.isError) return <ErrorNote>Could not load your channels and library. Reload to try again.</ErrorNote>;
@@ -284,7 +287,9 @@ export function Compose({ draft, setDraft, go }: { draft: Draft; setDraft: SetDr
 
   const video = videos.data?.find((v) => v.id === draft.videoId) ?? null;
   const videoMeta = meta(video);
-  const selectedIds = draft.accountIds ?? allAccounts.filter((a) => a.status === 'connected').map((a) => a.id);
+  // Nothing is ticked by default except what was used last time, so a post never goes somewhere by accident.
+  const usableIds = allAccounts.filter((a) => a.status === 'connected').map((a) => a.id);
+  const selectedIds = (draft.accountIds ?? loadLastSelection()).filter((id) => usableIds.includes(id));
   const selected = allAccounts.filter((a) => selectedIds.includes(a.id));
   const platforms = PLATFORMS.filter((p) => selected.some((a) => a.platform === p));
   const issues = Object.fromEntries(platforms.map((p) => [p, validateFields(p, fieldsFor(p, draft, videoMeta), videoMeta)])) as Record<Platform, Issue[]>;
@@ -294,7 +299,6 @@ export function Compose({ draft, setDraft, go }: { draft: Draft; setDraft: SetDr
   const scheduleInvalid = draft.scheduleOn && (!scheduleTime || scheduleTime < Date.now() + 60_000);
   const reason = !video ? 'Choose a video first.' : !selected.length ? 'Select at least one channel.' : blocked.length ? `Fix the ${blocked.map((p) => PLATFORM_INFO[p].label).join(' and ')} errors.` : scheduleInvalid ? 'Pick a time at least a minute from now.' : null;
 
-  const toggleAccount = (id: string) => setDraft((d) => ({ ...d, accountIds: selectedIds.includes(id) ? selectedIds.filter((x) => x !== id) : [...selectedIds, id] }));
   const set = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }));
   const hashtagCount = parseHashtags(draft.hashtags).length;
 
@@ -306,9 +310,12 @@ export function Compose({ draft, setDraft, go }: { draft: Draft; setDraft: SetDr
         title: draft.title.trim() || video.name,
         scheduledAt: scheduleTime,
         targets: selected.map((a) => ({ accountId: a.id, fields: fieldsFor(a.platform, draft, videoMeta) })),
+        draft: { ...draft, accountIds: selectedIds, scheduleOn: false, scheduleAt: '', draftId: null },
+        draftId: draft.draftId,
       },
       {
         onSuccess: () => {
+          saveLastSelection(selectedIds);
           toast('good', scheduleTime ? 'Scheduled.' : `Publishing to ${selected.length} ${selected.length === 1 ? 'channel' : 'channels'}.`);
           setDraft(emptyDraft());
           go('posts');
@@ -318,35 +325,34 @@ export function Compose({ draft, setDraft, go }: { draft: Draft; setDraft: SetDr
     );
   };
 
+  const hasContent = Boolean(video || draft.title.trim() || draft.text.trim() || draft.hashtags.trim());
+  const storeDraft = () =>
+    saveDraft.mutate(
+      { id: draft.draftId, name: draft.title.trim() || video?.name || 'Untitled draft', data: { ...draft, accountIds: selectedIds } },
+      {
+        onSuccess: (saved) => {
+          set({ draftId: saved.id });
+          toast('good', 'Draft saved. Find it under Posts.');
+        },
+        onError: (e) => toast('bad', (e as Error).message),
+      },
+    );
+
   return (
     <>
-      <PageHeader title="Publish" subtitle="Upload once, write once. Each platform gets the fields it accepts." />
+      <PageHeader
+        title="Publish"
+        subtitle="Upload once, write once. Each platform gets the fields it accepts."
+        actions={hasContent && <Button variant="ghost" onClick={() => confirm('Clear everything and start a new post?') && setDraft(emptyDraft())}>Start over</Button>}
+      />
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="space-y-4">
           <Step n={1} title="Video">
             <VideoPicker video={video} videos={videos.data ?? []} onPick={(videoId) => set({ videoId })} />
           </Step>
 
-          <Step n={2} title="Channels">
-            <div className="flex flex-wrap gap-2">
-              {allAccounts.map((a) => {
-                const on = selectedIds.includes(a.id);
-                return (
-                  <button
-                    key={a.id}
-                    type="button"
-                    aria-pressed={on}
-                    disabled={a.status !== 'connected'}
-                    onClick={() => toggleAccount(a.id)}
-                    className={cx('flex items-center gap-2 rounded-full border py-1.5 pr-3 pl-1.5 text-sm transition-colors disabled:opacity-50', on ? 'border-accent bg-accent-soft' : 'border-line hover:bg-sunken')}
-                  >
-                    <PlatformIcon platform={a.platform} size={24} />
-                    <span className="font-medium">{a.name}</span>
-                    {a.status !== 'connected' ? <Badge tone="warn">Reconnect</Badge> : on ? <Check className="size-4 text-accent" aria-hidden /> : <span className="size-4" />}
-                  </button>
-                );
-              })}
-            </div>
+          <Step n={2} title="Where to post" aside={<span className="tabular text-sm text-ink-3">{selected.length} of {allAccounts.length} selected</span>}>
+            <ChannelPicker accounts={allAccounts} selected={selectedIds} onChange={(accountIds) => set({ accountIds })} />
           </Step>
 
           <Step n={3} title="Write it once">
@@ -357,9 +363,15 @@ export function Compose({ draft, setDraft, go }: { draft: Draft; setDraft: SetDr
               <Field label="Description">
                 <textarea className={inputClass} rows={5} value={draft.text} onChange={(e) => set({ text: e.target.value })} placeholder="Tell viewers more. This becomes the description or caption." />
               </Field>
+              <div className="-mt-2 flex justify-end">
+                <SnippetMenu kind="text" current={draft.text} onInsert={(content) => set({ text: draft.text.trim() ? `${draft.text.trimEnd()}\n\n${content}` : content })} />
+              </div>
               <Field label="Hashtags" hint="Added to the end of each description and used as YouTube tags. Instagram allows 30." count={hashtagCount} max={LIMITS.instagram.hashtags}>
                 <input className={inputClass} value={draft.hashtags} onChange={(e) => set({ hashtags: e.target.value })} placeholder="travel vlog behindthescenes" />
               </Field>
+              <div className="-mt-2 flex justify-end">
+                <SnippetMenu kind="hashtags" current={draft.hashtags} onInsert={(content) => set({ hashtags: `${draft.hashtags} ${content}`.trim() })} />
+              </div>
             </div>
           </Step>
 
@@ -378,7 +390,7 @@ export function Compose({ draft, setDraft, go }: { draft: Draft; setDraft: SetDr
         <Card className="p-5 lg:sticky lg:top-6">
           <h2 className="mb-3 text-base font-semibold">Ready to go</h2>
           <ul className="mb-4 space-y-2.5">
-            {selected.length === 0 && <li className="text-sm text-ink-3">No channels selected.</li>}
+            {selected.length === 0 && <li className="text-sm text-ink-3">Tick the channels this video should go to.</li>}
             {selected.map((a) => {
               const list = issues[a.platform] ?? [];
               const errors = list.filter((i) => i.level === 'error').length;
@@ -413,6 +425,9 @@ export function Compose({ draft, setDraft, go }: { draft: Draft; setDraft: SetDr
             {draft.scheduleOn ? 'Schedule' : 'Publish'} to {selected.length} {selected.length === 1 ? 'channel' : 'channels'}
           </Button>
           {reason && <p className="mt-2 text-center text-xs text-ink-3">{reason}</p>}
+          <Button variant="ghost" className="mt-2 w-full" disabled={!hasContent} loading={saveDraft.isPending} onClick={storeDraft}>
+            <Save className="size-4" aria-hidden /> {draft.draftId ? 'Update draft' : 'Save as draft'}
+          </Button>
         </Card>
       </div>
     </>

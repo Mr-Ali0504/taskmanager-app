@@ -1,30 +1,34 @@
-import { BarChart3, Clapperboard, ListChecks, LogOut, MessageSquare, Moon, Radio, Send, Sun } from 'lucide-react';
+import { BarChart3, CalendarDays, Clapperboard, LayoutDashboard, ListChecks, LogOut, MessageSquare, Moon, Radio, Send, Sun } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { actions, useSession } from './api';
+import { Fragment, useCallback, useEffect, useState, type FormEvent } from 'react';
+import { actions, useAccounts, usePosts, useSession } from './api';
 import { Button, Card, ErrorNote, inputClass, Spinner, useToast } from './components/ui';
 import { emptyDraft, type Draft } from './draft';
 import { cx } from './lib';
 import { Analytics } from './pages/Analytics';
+import { Calendar } from './pages/Calendar';
 import { Channels } from './pages/Channels';
 import { Comments } from './pages/Comments';
 import { Compose } from './pages/Compose';
+import { Dashboard } from './pages/Dashboard';
 import { Library } from './pages/Library';
 import { Posts } from './pages/Posts';
 
 const NAV = [
-  { id: 'compose', label: 'Publish', icon: Send },
-  { id: 'posts', label: 'Posts', icon: ListChecks },
-  { id: 'library', label: 'Library', icon: Clapperboard },
-  { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-  { id: 'comments', label: 'Comments', icon: MessageSquare },
-  { id: 'channels', label: 'Channels', icon: Radio },
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, section: '' },
+  { id: 'compose', label: 'Publish', icon: Send, section: 'Content' },
+  { id: 'calendar', label: 'Calendar', icon: CalendarDays, section: 'Content' },
+  { id: 'posts', label: 'Posts', icon: ListChecks, section: 'Content' },
+  { id: 'library', label: 'Library', icon: Clapperboard, section: 'Content' },
+  { id: 'analytics', label: 'Analytics', icon: BarChart3, section: 'Audience' },
+  { id: 'comments', label: 'Comments', icon: MessageSquare, section: 'Audience' },
+  { id: 'channels', label: 'Channels', icon: Radio, section: 'Setup' },
 ] as const;
 export type Route = (typeof NAV)[number]['id'];
 
 const currentRoute = (): Route => {
   const id = location.hash.replace(/^#\//, '');
-  return NAV.some((n) => n.id === id) ? (id as Route) : 'compose';
+  return NAV.some((n) => n.id === id) ? (id as Route) : 'dashboard';
 };
 
 function Login({ onDone }: { onDone: () => void }) {
@@ -118,6 +122,10 @@ export function App() {
     setTheme(next);
   };
 
+  const signedIn = Boolean(session.data && (!session.data.authRequired || session.data.authenticated));
+  const scheduledCount = usePosts(signedIn).data?.filter((p) => p.status === 'scheduled').length;
+  const channelCount = useAccounts(signedIn).data?.length;
+
   if (session.isLoading) return <Spinner />;
   if (session.isError)
     return (
@@ -127,9 +135,13 @@ export function App() {
     );
   if (session.data?.authRequired && !session.data.authenticated) return <Login onDone={() => client.invalidateQueries()} />;
 
+  const badges: Partial<Record<Route, number>> = { posts: scheduledCount, channels: channelCount };
+
   const page = {
+    dashboard: <Dashboard go={go} />,
     compose: <Compose draft={draft} setDraft={setDraft} go={go} />,
-    posts: <Posts go={go} />,
+    calendar: <Calendar go={go} setDraft={setDraft} />,
+    posts: <Posts go={go} setDraft={setDraft} />,
     library: <Library go={go} setDraft={setDraft} />,
     analytics: <Analytics go={go} />,
     comments: <Comments go={go} />,
@@ -141,16 +153,20 @@ export function App() {
       {/* Sidebar on desktop */}
       <aside className="fixed inset-y-0 left-0 hidden w-56 flex-col border-r border-line bg-surface p-4 md:flex">
         <Logo />
-        <nav className="mt-8 flex flex-1 flex-col gap-1" aria-label="Main">
-          {NAV.map(({ id, label, icon: Icon }) => (
-            <a
-              key={id}
-              href={`#/${id}`}
-              aria-current={route === id ? 'page' : undefined}
-              className={cx('flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors', route === id ? 'bg-accent-soft text-accent' : 'text-ink-2 hover:bg-sunken hover:text-ink')}
-            >
-              <Icon className="size-4" aria-hidden /> {label}
-            </a>
+        <nav className="mt-6 flex flex-1 flex-col gap-0.5 overflow-y-auto" aria-label="Main">
+          {NAV.map(({ id, label, icon: Icon, section }, i) => (
+            <Fragment key={id}>
+              {section && section !== NAV[i - 1]?.section && <p className="mt-4 mb-1 px-3 text-[11px] font-semibold tracking-wider text-ink-3 uppercase">{section}</p>}
+              <a
+                href={`#/${id}`}
+                aria-current={route === id ? 'page' : undefined}
+                className={cx('flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors', route === id ? 'bg-accent-soft text-accent' : 'text-ink-2 hover:bg-sunken hover:text-ink')}
+              >
+                <Icon className="size-4" aria-hidden />
+                <span className="flex-1">{label}</span>
+                {badges[id] ? <span className="tabular rounded-full bg-sunken px-1.5 py-0.5 text-xs text-ink-2" title={id === 'posts' ? 'Scheduled posts' : 'Connected channels'}>{badges[id]}</span> : null}
+              </a>
+            </Fragment>
           ))}
         </nav>
         <div className="flex gap-1">
@@ -173,9 +189,9 @@ export function App() {
           {theme === 'dark' ? <Sun className="size-4" aria-hidden /> : <Moon className="size-4" aria-hidden />}
         </Button>
       </div>
-      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-6 border-t border-line bg-surface md:hidden" aria-label="Main">
+      <nav className="fixed inset-x-0 bottom-0 z-40 flex overflow-x-auto border-t border-line bg-surface md:hidden" aria-label="Main">
         {NAV.map(({ id, label, icon: Icon }) => (
-          <a key={id} href={`#/${id}`} aria-current={route === id ? 'page' : undefined} className={cx('flex flex-col items-center gap-0.5 py-2 text-[10px] font-medium', route === id ? 'text-accent' : 'text-ink-2')}>
+          <a key={id} href={`#/${id}`} aria-current={route === id ? 'page' : undefined} className={cx('flex min-w-16 flex-1 flex-col items-center gap-0.5 px-1 py-2 text-[10px] font-medium', route === id ? 'text-accent' : 'text-ink-2')}>
             <Icon className="size-5" aria-hidden /> {label}
           </a>
         ))}

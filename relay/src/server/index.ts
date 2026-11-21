@@ -10,7 +10,8 @@ import { runMigrations } from './db';
 import { env } from './env';
 import { startScheduler } from './publisher';
 import { registerAccounts } from './routes/accounts';
-import { registerInsights } from './routes/insights';
+import { recordAllSnapshots, registerInsights } from './routes/insights';
+import { registerSaved } from './routes/saved';
 import { registerPosts } from './routes/posts';
 import { registerVideos } from './routes/videos';
 
@@ -35,6 +36,7 @@ registerAccounts(app);
 registerVideos(app);
 registerPosts(app);
 registerInsights(app);
+registerSaved(app);
 
 // In production this same server also serves the built UI.
 const webDir = path.resolve('dist/web');
@@ -47,6 +49,9 @@ if (fs.existsSync(webDir)) {
 }
 
 startScheduler((msg) => app.log.info(msg));
+// Record each channel's audience shortly after start and then every six hours.
+setTimeout(() => void recordAllSnapshots(), 30_000);
+setInterval(() => void recordAllSnapshots(), 6 * 3600_000);
 await app.listen({ port: env.port, host: env.host });
 console.log(`Relay Studio API listening on http://${env.host}:${env.port}`);
 if (!env.appPassword) console.warn('APP_PASSWORD is not set: anyone who can reach this address can publish to your channels. Set it before exposing the app.');

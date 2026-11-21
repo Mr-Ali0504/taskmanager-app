@@ -1,11 +1,12 @@
 // Statistics and comments, read live from each platform and cached briefly to stay inside API quotas.
-import { eq } from 'drizzle-orm';
+import { and, asc, eq, gte } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { AccountAnalytics, CommentsResponse, RemoteComment, RemoteVideo } from '../../shared/types';
 import { db, schema } from '../db';
 import type { AccountRow } from '../db/schema';
 import { adapterFor, PlatformError } from '../platforms';
+import { isoDay } from '../platforms/http';
 import { toAccountDTO } from './accounts';
 
 const TTL_MS = 5 * 60_000;
@@ -28,6 +29,33 @@ function flagReauth(account: AccountRow, e: unknown) {
     db.update(schema.accounts).set({ status: 'needs_reauth' }).where(eq(schema.accounts.id, account.id)).run();
 }
 
+/** Saves today's audience reading for a channel (one row per channel per day, latest value wins). */
+function recordSnapshot(account: AccountRow, profile: { followers: number | null; totalViews: number | null }) {
+  const row = { accountId: account.id, date: isoDay(new Date()), followers: profile.followers, totalViews: profile.totalViews };
+  db.insert(schema.snapshots).values(row).onConflictDoUpdate({ target: [schema.snapshots.accountId, schema.snapshots.date], set: row }).run();
+}
+
+function historyFor(account: AccountRow) {
+  const since = isoDay(new Date(Date.now() - 180 * 86_400_000));
+  return db
+    .select({ date: schema.snapshots.date, followers: schema.snapshots.followers })
+    .from(schema.snapshots)
+    .where(and(eq(schema.snapshots.accountId, account.id), gte(schema.snapshots.date, since)))
+    .orderBy(asc(schema.snapshots.date))
+    .all();
+}
+
+/** Called on a timer so growth is tracked even on days nobody opens the Analytics page. */
+export async function recordAllSnapshots() {
+  for (const account of db.select().from(schema.accounts).all()) {
+    try {
+      recordSnapshot(account, await cached(`profile:${account.id}`, () => adapterFor(account).getProfile(account)));
+    } catch (e) {
+      flagReauth(account, e);
+    }
+  }
+}
+
 const recentVideos = (account: AccountRow) => cached(`videos:${account.id}`, () => adapterFor(account).listVideos(account, 12));
 
 async function analyticsFor(account: AccountRow, days: number): Promise<AccountAnalytics> {
@@ -36,14 +64,15 @@ async function analyticsFor(account: AccountRow, days: number): Promise<AccountA
   try {
     // The profile is essential; the chart and video list degrade to empty if their own call fails.
     const profile = await cached(`profile:${account.id}`, () => adapter.getProfile(account));
+    recordSnapshot(account, profile);
     const [series, videos] = await Promise.all([
       cached(`series:${account.id}:${days}`, () => adapter.getSeries(account, days)).catch(() => ({ metric: 'Views', points: [] })),
       recentVideos(account).catch((): RemoteVideo[] => []),
     ]);
-    return { ...base, profile, seriesMetric: series.metric, series: series.points, videos, error: null };
+    return { ...base, profile, seriesMetric: series.metric, series: series.points, videos, history: historyFor(account), error: null };
   } catch (e) {
     flagReauth(account, e);
-    return { ...base, profile: null, seriesMetric: 'Views', series: [], videos: [], error: message(e) };
+    return { ...base, profile: null, seriesMetric: 'Views', series: [], videos: [], history: historyFor(account), error: message(e) };
   }
 }
 

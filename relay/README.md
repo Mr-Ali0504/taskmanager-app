@@ -6,12 +6,19 @@ Upload a video once and publish it to **YouTube, Instagram and Facebook** in one
 
 | Screen | What you get |
 |---|---|
-| **Publish** | Pick a video, write a title, description and hashtags once. Each platform gets the fields it accepts, with live character counters and warnings. Publish now or schedule. |
-| **Posts** | Upload progress per channel, links to the published videos, retry for anything that failed, cancel for anything scheduled. |
+| **Dashboard** | Total audience, views, what is scheduled next, recent posts, and anything that needs attention (failed uploads, lost connections). |
+| **Publish** | Pick a video, tick the channels it should go to, write a title, description and hashtags once. Each platform gets the fields it accepts, with live counters and warnings. Publish now, schedule, or save as a draft. |
+| **Calendar** | Month view of scheduled and published posts. Pick a day to schedule a post for it. |
+| **Posts** | Upload progress per channel, links to the published videos, retry for anything that failed, drafts, search, and "Post again" to reuse an earlier post. |
 | **Library** | Every video you uploaded, ready to publish again without re-uploading. |
-| **Analytics** | Total audience, daily views/reach per channel, top videos with engagement rate. |
-| **Comments** | The most-liked comments on your recent videos across all channels. Reply from here. |
+| **Analytics** | Audience and its growth over time, daily views/reach per channel, a sortable video table with engagement rate, per-channel filter and CSV export. |
+| **Comments** | Comments on your recent videos across all channels, with search, sorting and replies. |
 | **Channels** | Connect and disconnect accounts. A demo mode adds sample channels so you can look around before setting up API keys. |
+
+Time-savers on the Publish page:
+
+- **Channel groups**: tick a set of channels (for example every account of one brand), save it as a group, and select it with one click next time. Nothing is ticked by default except what you used last time.
+- **Saved hashtag sets and caption templates**: the "Saved" link under the description and hashtag fields.
 
 ### What each platform takes
 
@@ -98,6 +105,7 @@ Things to know:
 - **Scheduling** is done by this app, not the platforms, so the app must be running at the scheduled time. If the server was off, the post goes out when it starts again.
 - **Tokens** are encrypted (AES-256-GCM) before being saved. The key is `APP_SECRET`, or a generated `data/secret.key`. Back up the `data` folder to keep your connections, library and history.
 - **Demo channels** never contact any platform. Their numbers are made up.
+- **Audience growth** is recorded by this app once the channel is connected (the platforms do not provide follower history), so that chart starts empty and fills in day by day while the app runs.
 - Statistics are cached for five minutes to stay inside API quotas; the refresh button fetches fresh numbers.
 - Instagram reports daily *reach* rather than daily views, so the trend chart labels that line accordingly.
 

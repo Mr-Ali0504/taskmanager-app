@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AccountAnalytics, AccountDTO, CommentsResponse, CreatePostBody, PostDTO, SessionInfo, VideoDTO } from '../shared/types';
+import type { AccountAnalytics, AccountDTO, CommentsResponse, CreatePostBody, DraftDTO, GroupDTO, PostDTO, SessionInfo, SnippetDTO, VideoDTO } from '../shared/types';
 
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -17,13 +17,18 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 const post = (body?: unknown): RequestInit => ({ method: 'POST', body: body === undefined ? undefined : JSON.stringify(body) });
 
 export const useSession = () => useQuery({ queryKey: ['session'], queryFn: () => api<SessionInfo>('/session') });
-export const useAccounts = () => useQuery({ queryKey: ['accounts'], queryFn: () => api<AccountDTO[]>('/accounts') });
+export const useAccounts = (enabled = true) => useQuery({ queryKey: ['accounts'], queryFn: () => api<AccountDTO[]>('/accounts'), enabled });
 export const useVideos = () => useQuery({ queryKey: ['videos'], queryFn: () => api<VideoDTO[]>('/videos') });
+
+export const useGroups = () => useQuery({ queryKey: ['groups'], queryFn: () => api<GroupDTO[]>('/groups') });
+export const useSnippets = () => useQuery({ queryKey: ['snippets'], queryFn: () => api<SnippetDTO[]>('/snippets') });
+export const useDrafts = () => useQuery({ queryKey: ['drafts'], queryFn: () => api<DraftDTO[]>('/drafts') });
 
 const isActive = (p: PostDTO) => p.status === 'publishing';
 /** Polls quickly while anything is uploading, slowly otherwise (to pick up scheduled posts going out). */
-export const usePosts = () =>
+export const usePosts = (enabled = true) =>
   useQuery({
+    enabled,
     queryKey: ['posts'],
     queryFn: () => api<PostDTO[]>('/posts'),
     refetchInterval: (query) => (query.state.data?.some(isActive) ? 1000 : 20_000),
@@ -54,6 +59,12 @@ export const actions = {
   createPost: (body: CreatePostBody) => api<PostDTO>('/posts', post(body)),
   publishPost: (id: string) => api<PostDTO>(`/posts/${id}/publish`, post()),
   deletePost: (id: string) => api(`/posts/${id}`, { method: 'DELETE' }),
+  saveGroup: (body: { name: string; accountIds: string[] }) => api<GroupDTO>('/groups', post(body)),
+  deleteGroup: (id: string) => api(`/groups/${id}`, { method: 'DELETE' }),
+  saveSnippet: (body: Omit<SnippetDTO, 'id'>) => api<SnippetDTO>('/snippets', post(body)),
+  deleteSnippet: (id: string) => api(`/snippets/${id}`, { method: 'DELETE' }),
+  saveDraft: (body: { id: string | null; name: string; data: unknown }) => api<DraftDTO>('/drafts', post(body)),
+  deleteDraft: (id: string) => api(`/drafts/${id}`, { method: 'DELETE' }),
   reply: (body: { accountId: string; commentId: string; text: string }) => api('/comments/reply', post(body)),
   refresh: (what: 'analytics' | 'comments') => api(`/${what}?refresh=1${what === 'analytics' ? '&days=28' : ''}`),
 };

@@ -8,6 +8,13 @@
       "when": 1795293304099,
       "tag": "0000_fixed_sir_ram",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1795296444756,
+      "tag": "0001_sudden_ma_gnuci",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,6 @@
 // Small building blocks shared by every page.
 import { AlertTriangle, CheckCircle2, Info, Loader2, XCircle } from 'lucide-react';
-import { createContext, useCallback, useContext, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import type { Issue, Platform } from '../../shared/platforms';
 import { cx } from '../lib';
 
@@ -101,6 +101,59 @@ export function Segmented<T extends string | number>({ value, onChange, options,
     </div>
   );
 }
+
+/** Underlined tabs with optional counts. */
+export function Tabs<T extends string>({ value, onChange, tabs, label }: { value: T; onChange: (v: T) => void; tabs: { value: T; label: string; count?: number }[]; label: string }) {
+  return (
+    <div role="tablist" aria-label={label} className="mb-5 flex gap-1 overflow-x-auto border-b border-line">
+      {tabs.map((t) => (
+        <button
+          key={t.value}
+          type="button"
+          role="tab"
+          aria-selected={t.value === value}
+          onClick={() => onChange(t.value)}
+          className={cx('-mb-px flex items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-medium whitespace-nowrap transition-colors', t.value === value ? 'border-accent text-ink' : 'border-transparent text-ink-2 hover:text-ink')}
+        >
+          {t.label}
+          {t.count != null && <span className={cx('tabular rounded-full px-1.5 py-0.5 text-xs', t.value === value ? 'bg-accent-soft text-accent' : 'bg-sunken text-ink-3')}>{t.count}</span>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** A button that opens a small panel beneath it. Closes on outside click or Escape. */
+export function Popover({ trigger, children, align = 'right' }: { trigger: ReactNode; children: (close: () => void) => ReactNode; align?: 'left' | 'right' }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+  return (
+    <div ref={ref} className="relative inline-block">
+      <span onClick={() => setOpen((o) => !o)}>{trigger}</span>
+      {open && (
+        <div className={cx('rise absolute top-full z-30 mt-1.5 w-72 rounded-xl border border-line bg-surface p-2 shadow-xl', align === 'right' ? 'right-0' : 'left-0')}>{children(() => setOpen(false))}</div>
+      )}
+    </div>
+  );
+}
+
+export const SectionTitle = ({ children, aside }: { children: ReactNode; aside?: ReactNode }) => (
+  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+    <h2 className="text-sm font-semibold tracking-wide text-ink-2 uppercase">{children}</h2>
+    {aside}
+  </div>
+);
 
 type Tone = 'neutral' | 'good' | 'warn' | 'bad' | 'accent';
 const toneClass: Record<Tone, string> = {

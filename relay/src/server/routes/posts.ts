@@ -30,12 +30,14 @@ const createSchema = z.object({
   title: z.string().max(300),
   scheduledAt: z.number().nullable(),
   targets: z.array(z.object({ accountId: z.string(), fields: z.unknown() })).min(1, 'Choose at least one channel.'),
+  draft: z.unknown().optional(),
+  draftId: z.string().nullish(),
 });
 
 function loadPosts(ids?: string[]): PostDTO[] {
   const rows = ids
     ? db.select().from(posts).where(inArray(posts.id, ids)).all()
-    : db.select().from(posts).orderBy(desc(posts.createdAt)).limit(100).all();
+    : db.select().from(posts).orderBy(desc(posts.createdAt)).limit(300).all();
   if (!rows.length) return [];
   const allTargets = db.select().from(targets).where(inArray(targets.postId, rows.map((p) => p.id))).all();
   const videoIds = [...new Set(rows.map((p) => p.videoId).filter((v): v is string => Boolean(v)))];
@@ -48,6 +50,7 @@ function loadPosts(ids?: string[]): PostDTO[] {
       status: p.status,
       scheduledAt: p.scheduledAt,
       createdAt: p.createdAt,
+      draft: p.draft ?? null,
       video: video ? toVideoDTO(video) : null,
       targets: allTargets
         .filter((t) => t.postId === p.id)
@@ -78,10 +81,11 @@ export function registerPosts(app: FastifyInstance) {
     const postId = newId();
     db.transaction((tx) => {
       tx.insert(posts)
-        .values({ id: postId, videoId: video.id, title: body.title || video.name, status: scheduled ? 'scheduled' : 'publishing', scheduledAt: scheduled ? body.scheduledAt : null, createdAt: Date.now() })
+        .values({ id: postId, videoId: video.id, title: body.title || video.name, status: scheduled ? 'scheduled' : 'publishing', scheduledAt: scheduled ? body.scheduledAt : null, draft: body.draft ?? null, createdAt: Date.now() })
         .run();
       for (const { account, fields } of prepared)
         tx.insert(targets).values({ id: newId(), postId, accountId: account.id, accountName: account.name, platform: account.platform, fields }).run();
+      if (body.draftId) tx.delete(schema.drafts).where(eq(schema.drafts.id, body.draftId)).run();
     });
     if (!scheduled) void runPost(postId);
     return loadPosts([postId])[0];

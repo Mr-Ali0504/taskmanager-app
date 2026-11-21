@@ -53,6 +53,8 @@ export interface PostDTO {
   scheduledAt: number | null;
   createdAt: number;
   targets: TargetDTO[];
+  /** Composer state the post was made from; null for posts made before this was recorded. */
+  draft: unknown | null;
 }
 
 export interface CreatePostBody {
@@ -60,6 +62,30 @@ export interface CreatePostBody {
   title: string;
   scheduledAt: number | null;
   targets: { accountId: string; fields: AnyFields }[];
+  /** Composer state, stored so the post can be reused. */
+  draft?: unknown;
+  /** Saved draft this post came from; it is removed once the post is created. */
+  draftId?: string | null;
+}
+
+export interface GroupDTO {
+  id: string;
+  name: string;
+  accountIds: string[];
+}
+
+export interface SnippetDTO {
+  id: string;
+  kind: 'hashtags' | 'text';
+  name: string;
+  content: string;
+}
+
+export interface DraftDTO {
+  id: string;
+  name: string;
+  data: unknown;
+  updatedAt: number;
 }
 
 // ── Analytics ────────────────────────────────────────────────────────────────
@@ -95,6 +121,8 @@ export interface AccountAnalytics {
   seriesMetric: string;
   series: SeriesPoint[];
   videos: RemoteVideo[];
+  /** Daily audience readings recorded by this app (oldest first). Starts the day the channel is connected. */
+  history: { date: string; followers: number | null }[];
   /** Set when the platform call failed; the other accounts still load. */
   error: string | null;
 }
