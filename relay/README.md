@@ -70,6 +70,27 @@ docker compose up -d --build
 
 Both serve the app on http://localhost:8787. Set `PUBLIC_URL` in `.env` to the address you actually open, and set `APP_PASSWORD` before exposing it beyond your own machine.
 
+## Keep it running on your Mac (no Terminal window)
+
+Instead of `npm run dev`, the app can run as a background service that starts by itself when you log in.
+
+In Finder, open the `relay/mac` folder and double-click:
+
+| File | What it does |
+|---|---|
+| **Start Relay Studio** | Builds if needed, starts the app, and makes it start at every login |
+| **Stop Relay Studio** | Stops it. It stays off until you start it again |
+| **Update Relay Studio** | Downloads the latest version, rebuilds, and restarts if it was running |
+| **Show Logs** | Opens the logs folder and shows the latest lines |
+
+The same from a terminal: `./relay.sh start`, `stop`, `restart`, `update`, `status`, `logs`, `open`.
+
+- The address stays whatever `PUBLIC_URL` in `.env` says (http://localhost:5173 by default), so the Google and Meta sign-in settings keep working.
+- Only this computer can reach the app, so no password is needed.
+- **Logs** are in `relay/logs`: `app.log` records uploads, failures and scheduled posts with timestamps; `update.log` holds the output of the last update or build. `app.log` is moved to `app.log.1` once it passes about 5 MB.
+- Scheduled posts go out only while the Mac is on and awake.
+- Stop `npm run dev` first if it is open; both use the same address.
+
 ## Putting it on a domain
 
 To use the app from your phone or another computer, run it on a server that stays on. It needs a machine with a disk (videos and the database are stored on it), so use a small virtual server (VPS) rather than a serverless host.

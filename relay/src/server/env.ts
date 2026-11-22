@@ -25,7 +25,8 @@ const isProd = process.env.NODE_ENV === 'production';
 export const env = {
   isProd,
   port,
-  host: process.env.HOST ?? (isProd ? '0.0.0.0' : '127.0.0.1'),
+  // Only this computer can reach the app unless HOST says otherwise (the Docker setup sets HOST=0.0.0.0).
+  host: process.env.HOST ?? '127.0.0.1',
   dataDir,
   uploadsDir: path.join(dataDir, 'uploads'),
   thumbsDir: path.join(dataDir, 'thumbs'),

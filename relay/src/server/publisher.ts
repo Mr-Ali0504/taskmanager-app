@@ -7,6 +7,7 @@ import type { PostStatus, TargetStatus } from '../shared/types';
 import { db, schema } from './db';
 import type { TargetRow, VideoRow } from './db/schema';
 import { env } from './env';
+import { log } from './log';
 import { adapterFor, PlatformError } from './platforms';
 
 const { posts, targets, videos, accounts } = schema;
@@ -26,6 +27,7 @@ async function publishTarget(target: TargetRow, video: VideoRow) {
     if (hasErrors(issues)) throw new PlatformError(issues.find((i) => i.level === 'error')!.message);
 
     setTarget(target.id, { status: 'uploading', progress: 0, error: null });
+    log(`Uploading "${video.name}" to ${target.platform} / ${target.accountName}`);
     let lastWrite = 0;
     const result = await adapterFor(account).publish({
       account,
@@ -41,10 +43,11 @@ async function publishTarget(target: TargetRow, video: VideoRow) {
       },
     });
     setTarget(target.id, { status: 'published', progress: 100, externalId: result.externalId, url: result.url });
+    log(`Published to ${target.platform} / ${target.accountName}${result.url ? `: ${result.url}` : ''}`);
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Unknown error';
     setTarget(target.id, { status: 'failed', error: message });
-    console.error(`[publish] ${target.platform} / ${target.accountName} failed: ${message}`);
+    log(`FAILED  ${target.platform} / ${target.accountName}: ${message}`);
     if (e instanceof PlatformError && e.needsReauth)
       db.update(accounts).set({ status: 'needs_reauth' }).where(eq(accounts.id, target.accountId)).run();
   }
@@ -97,7 +100,7 @@ export function startScheduler(log: (msg: string) => void) {
   const tick = () => {
     const due = db.select({ id: posts.id }).from(posts).where(and(eq(posts.status, 'scheduled'), lte(posts.scheduledAt, Date.now()))).all();
     for (const { id } of due) {
-      log(`Publishing scheduled post ${id}`);
+      log('A scheduled post is due; publishing it now.');
       void runPost(id);
     }
   };

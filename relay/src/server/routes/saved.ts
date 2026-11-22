@@ -8,6 +8,7 @@ import { AgentError, decide, describeAgentError, sendMessage } from '../agent';
 import { db, schema } from '../db';
 import { writeCopy } from '../writer';
 import { agentConfigured } from '../env';
+import { logError } from '../log';
 
 const { groups, snippets, drafts } = schema;
 const name = z.string().trim().min(1, 'Give it a name.').max(80);
@@ -62,7 +63,7 @@ export function registerSaved(app: FastifyInstance) {
     try {
       return await sendMessage(body.conversationId, body.message, body.timeZone);
     } catch (e) {
-      if (!(e instanceof AgentError)) req.log.error(e);
+      if (!(e instanceof AgentError)) logError('assistant', e);
       const { status, message } = describeAgentError(e);
       return reply.code(status).send({ error: message });
     }
@@ -73,7 +74,7 @@ export function registerSaved(app: FastifyInstance) {
     try {
       return await writeCopy(body);
     } catch (e) {
-      if (!(e instanceof AgentError)) req.log.error(e);
+      if (!(e instanceof AgentError)) logError('assistant', e);
       const { status, message } = describeAgentError(e);
       return reply.code(status).send({ error: message });
     }
@@ -84,7 +85,7 @@ export function registerSaved(app: FastifyInstance) {
     try {
       return await decide(body.conversationId, body.approved);
     } catch (e) {
-      if (!(e instanceof AgentError)) req.log.error(e);
+      if (!(e instanceof AgentError)) logError('assistant', e);
       const { status, message } = describeAgentError(e);
       return reply.code(status).send({ error: message });
     }

@@ -10,6 +10,7 @@ import type { AccountRow } from '../db/schema';
 import { env, googleConfigured, metaConfigured } from '../env';
 import { qs, requestJson } from '../platforms/http';
 import { GRAPH } from '../platforms/meta';
+import { log, logError } from '../log';
 import { clearCache } from './insights';
 
 const { accounts } = schema;
@@ -165,13 +166,14 @@ export function registerAccounts(app: FastifyInstance) {
       try {
         const count = req.params.provider === 'google' ? await connectGoogle(code) : await connectMeta(code);
         clearCache();
+        log(`Connected ${count} channel(s) through ${req.params.provider}.`);
         if (!count)
           return back({
             connect_error: req.params.provider === 'google' ? 'That Google account has no YouTube channel.' : 'No Facebook Pages were shared. Select at least one Page during sign-in.',
           });
         return back({ connected: String(count) });
       } catch (e) {
-        req.log.error(e);
+        logError(`connecting ${req.params.provider}`, e);
         return back({ connect_error: e instanceof Error ? e.message : 'Could not connect the account.' });
       }
     },
