@@ -1,6 +1,8 @@
 # Local trial:           docker compose up -d --build            ->  http://localhost:8787
 # On a server + domain:  docker compose --profile web up -d --build   ->  https://your-domain
 #   (set DOMAIN, PUBLIC_URL and APP_PASSWORD in .env first; see README "Putting it on a domain")
+name: relay
+
 services:
   relay:
     build: .

@@ -100,7 +100,7 @@ To use the app from your phone or another computer, run it on a server that stay
    - `APP_PASSWORD` to a long, unique password. The app refuses to start on a public address without it.
    - `DOMAIN=studio.example.com` and `PUBLIC_URL=https://studio.example.com`
    - your Google, Meta and Anthropic keys.
-3. Start it:
+3. On an Ubuntu server, `./server.sh setup` installs Docker and prepares `.env`, and `./server.sh start` builds and starts everything (`update`, `logs`, `status` and `backup` are there too). Or start it by hand:
    ```bash
    docker compose --profile web up -d --build
    ```
