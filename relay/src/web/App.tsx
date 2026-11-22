@@ -6,7 +6,7 @@ import { Button, Card, ErrorNote, inputClass, Spinner, useToast } from './compon
 import { emptyDraft, type Draft } from './draft';
 import { cx } from './lib';
 import { Analytics } from './pages/Analytics';
-import { Assistant, emptyChat, type ChatState } from './pages/Assistant';
+import { Assistant, emptyChat, WEEKLY_REVIEW_PROMPT, type ChatState } from './pages/Assistant';
 import { Calendar } from './pages/Calendar';
 import { Channels } from './pages/Channels';
 import { Comments } from './pages/Comments';
@@ -138,16 +138,23 @@ export function App() {
     );
   if (session.data?.authRequired && !session.data.authenticated) return <Login onDone={() => client.invalidateQueries()} />;
 
+  /** Opens the assistant and has it produce the weekly review straight away. */
+  const askWeeklyReview = () => {
+    setChat((c) => ({ ...c, queued: WEEKLY_REVIEW_PROMPT }));
+    go('assistant');
+  };
+  const review = session.data?.assistant ? askWeeklyReview : undefined;
+
   const badges: Partial<Record<Route, number>> = { posts: scheduledCount, channels: channelCount };
 
   const page = {
-    dashboard: <Dashboard go={go} />,
+    dashboard: <Dashboard go={go} onReview={review} />,
     assistant: <Assistant session={session.data!} chat={chat} setChat={setChat} />,
     compose: <Compose draft={draft} setDraft={setDraft} go={go} />,
     calendar: <Calendar go={go} setDraft={setDraft} />,
     posts: <Posts go={go} setDraft={setDraft} />,
     library: <Library go={go} setDraft={setDraft} />,
-    analytics: <Analytics go={go} />,
+    analytics: <Analytics go={go} onReview={review} />,
     comments: <Comments go={go} />,
     channels: <Channels session={session.data!} />,
   }[route];

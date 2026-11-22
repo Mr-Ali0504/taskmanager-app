@@ -1,6 +1,6 @@
 // Chat with the assistant. It looks things up by itself; publishing and replying wait for your approval.
 import { CalendarClock, Check, Film, MessageSquare, RotateCcw, Send, Sparkles, X } from 'lucide-react';
-import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { AssistantTurn, PendingAction, SessionInfo } from '../../shared/types';
 import { api } from '../api';
@@ -16,11 +16,51 @@ export type ChatItem =
 export interface ChatState {
   conversationId: string | null;
   items: ChatItem[];
+  /** A message queued from another page (e.g. "Weekly review"); sent as soon as the assistant opens. */
+  queued: string | null;
 }
-export const emptyChat = (): ChatState => ({ conversationId: null, items: [] });
+export const emptyChat = (): ChatState => ({ conversationId: null, items: [], queued: null });
+export const WEEKLY_REVIEW_PROMPT = 'Give me my weekly review: what is working, what needs attention, and what I should do this week.';
+
+/** Renders the small subset of Markdown the assistant uses: headings, bullet and numbered lists, and bold. */
+function RichText({ text }: { text: string }) {
+  const bold = (line: string) => line.split(/(\*\*[^*]+\*\*)/g).map((part, i) => (part.startsWith('**') && part.endsWith('**') ? <strong key={i} className="font-semibold">{part.slice(2, -2)}</strong> : part));
+  const blocks: ReactNode[] = [];
+  let list: { ordered: boolean; items: string[] } | null = null;
+  const flush = () => {
+    if (!list) return;
+    const Tag = list.ordered ? 'ol' : 'ul';
+    blocks.push(
+      <Tag key={blocks.length} className={cx('space-y-1 pl-5', list.ordered ? 'list-decimal' : 'list-disc')}>
+        {list.items.map((item, i) => (
+          <li key={i}>{bold(item)}</li>
+        ))}
+      </Tag>,
+    );
+    list = null;
+  };
+  for (const raw of text.split('\n')) {
+    const line = raw.trim();
+    const bullet = /^[-*•]\s+(.*)$/.exec(line);
+    const numbered = /^\d+[.)]\s+(.*)$/.exec(line);
+    const heading = /^#{1,4}\s+(.*)$/.exec(line);
+    if (bullet || numbered) {
+      const ordered = Boolean(numbered);
+      if (list && list.ordered !== ordered) flush();
+      list ??= { ordered, items: [] };
+      list.items.push((bullet ?? numbered)![1]);
+      continue;
+    }
+    flush();
+    if (!line) continue;
+    blocks.push(heading ? <h3 key={blocks.length} className="pt-1 text-sm font-semibold">{bold(heading[1])}</h3> : <p key={blocks.length}>{bold(line)}</p>);
+  }
+  flush();
+  return <div className="space-y-2">{blocks}</div>;
+}
 
 const SUGGESTIONS = [
-  'Which of my videos did best in the last 28 days?',
+  WEEKLY_REVIEW_PROMPT,
   'Show me comments I should reply to, and draft replies.',
   'Post my newest video to all my Instagram accounts tomorrow at 6pm.',
   'What do I have scheduled this week?',
@@ -110,7 +150,7 @@ export function Assistant({ session, chat, setChat }: { session: SessionInfo; ch
     if (turn.steps.length) items.push({ type: 'steps', steps: turn.steps });
     for (const text of turn.texts) items.push({ type: 'assistant', text });
     if (turn.pending.length) items.push({ type: 'actions', actions: turn.pending, decided: null });
-    setChat({ conversationId: turn.conversationId, items });
+    setChat({ conversationId: turn.conversationId, items, queued: null });
     setChoices(Object.fromEntries(turn.pending.map((a) => [a.id, true])));
   };
 
@@ -132,6 +172,15 @@ export function Assistant({ session, chat, setChat }: { session: SessionInfo; ch
       setBusy(false);
     }
   };
+
+  // A prompt queued from the Dashboard or Analytics page is sent once, when this page opens.
+  useEffect(() => {
+    if (!chat.queued || busy || awaiting || !session.assistant) return;
+    const message = chat.queued;
+    setChat((c) => ({ ...c, queued: null }));
+    void send(message);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chat.queued]);
 
   const decide = async (approveNone = false) => {
     if (!awaiting || !chat.conversationId || busy) return;
@@ -197,7 +246,7 @@ export function Assistant({ session, chat, setChat }: { session: SessionInfo; ch
         <div className="space-y-3" aria-live="polite">
           {chat.items.map((item, i) => {
             if (item.type === 'user') return <div key={i} className="ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-md bg-accent px-4 py-2.5 text-sm whitespace-pre-wrap text-on-accent">{item.text}</div>;
-            if (item.type === 'assistant') return <div key={i} className="w-fit max-w-[90%] rounded-2xl rounded-bl-md border border-line bg-surface px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap">{item.text}</div>;
+            if (item.type === 'assistant') return <div key={i} className="w-fit max-w-[90%] rounded-2xl rounded-bl-md border border-line bg-surface px-4 py-3 text-sm leading-relaxed"><RichText text={item.text} /></div>;
             if (item.type === 'steps') return <p key={i} className="px-1 text-xs text-ink-3">{item.steps.join(' · ')}</p>;
             return (
               <div key={i} className="space-y-3">

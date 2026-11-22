@@ -106,6 +106,7 @@ Things to know:
 Add `ANTHROPIC_API_KEY` to `.env` (create a key in the Claude Console) and restart. Then open **Assistant** and type things like "post my newest video to all Instagram accounts tomorrow at 6pm" or "show me comments worth replying to and draft replies".
 
 - It can read your channels, library, posts, statistics and comments on its own.
+- **Weekly review**: ask "what's working?" or click **Weekly review** on the Dashboard or Analytics page. It compares the last 7 days with the 7 before, per channel, and says what is working, what needs attention and what to do next. The comparisons are calculated by the app, and the assistant writes the summary from them.
 - Publishing and replying are only ever **proposed**. You see exactly what will go out and click Approve or Decline. This is deliberate: comments are written by strangers, and the approval step means text in a comment can never make the app post something by itself.
 - Videos must be in the Library first; the assistant picks from there.
 - Conversations are kept in memory and reset when the server restarts.

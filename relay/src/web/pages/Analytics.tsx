@@ -1,5 +1,5 @@
 // Audience, daily views and the best-performing videos across every connected channel.
-import { ArrowDown, ArrowUp, BarChart3, Download, ExternalLink, RefreshCw } from 'lucide-react';
+import { ArrowDown, ArrowUp, BarChart3, Download, ExternalLink, RefreshCw, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { AccountAnalytics } from '../../shared/types';
@@ -122,7 +122,7 @@ function downloadCsv(rows: (string | number | null)[][]) {
   URL.revokeObjectURL(link.href);
 }
 
-export function Analytics({ go }: { go: (r: Route) => void }) {
+export function Analytics({ go, onReview }: { go: (r: Route) => void; onReview?: () => void }) {
   const [days, setDays] = useState(28);
   const [channel, setChannel] = useState('all');
   const [sortKey, setSortKey] = useState<SortKey>('views');
@@ -136,6 +136,7 @@ export function Analytics({ go }: { go: (r: Route) => void }) {
       subtitle="How your channels and recent videos are doing."
       actions={
         <>
+          {onReview && <Button onClick={onReview}><Sparkles className="size-4" aria-hidden /> Weekly review</Button>}
           <select className={cx(inputClass, 'h-10 w-auto min-w-44')} value={channel} onChange={(e) => setChannel(e.target.value)} aria-label="Channel">
             <option value="all">All channels</option>
             {(analytics.data ?? []).map((a) => (

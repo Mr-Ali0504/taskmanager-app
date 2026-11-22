@@ -115,4 +115,21 @@ describe('assistant', () => {
     const after = await agent.decide(turn.conversationId, ['c2']);
     expect(after.steps).toEqual(['Posted the reply']);
   });
+
+  it('builds a weekly report with the comparisons already calculated', async () => {
+    const { weeklyReport } = await import('../src/server/routes/insights');
+    const report = await weeklyReport();
+    expect(report.channels).toHaveLength(2);
+    const yt = report.channels.find((c) => c.platform === 'youtube')! as Record<string, any>;
+    expect(yt.daily_metric).toBe('views');
+    expect(yt.views_last_7_days).toBeGreaterThan(0);
+    expect(yt.views_previous_7_days).toBeGreaterThan(0);
+    expect(yt.change_percent).toBeCloseTo(((yt.views_last_7_days - yt.views_previous_7_days) / yt.views_previous_7_days) * 100, 0);
+    expect(yt.videos_published_last_7_days.length).toBeGreaterThan(0);
+    expect(yt.videos_published_last_7_days.every((v: any) => Date.parse(v.published) > Date.now() - 8 * 86_400_000)).toBe(true);
+    const ig = report.channels.find((c) => c.platform === 'instagram')! as Record<string, any>;
+    expect(ig.daily_metric).toBe('reach');
+    expect(ig.reach_last_7_days).toBeGreaterThan(0);
+    expect(report.notes.some((n) => n.includes('made-up'))).toBe(true);
+  });
 });

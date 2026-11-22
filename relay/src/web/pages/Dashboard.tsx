@@ -1,5 +1,5 @@
 // The home page: where things stand, what is coming up, and what needs attention.
-import { AlertTriangle, ArrowRight, CalendarClock, CheckCircle2, Radio, Send } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CalendarClock, CheckCircle2, Radio, Send, Sparkles } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { AccountAnalytics, PostDTO } from '../../shared/types';
 import { useAccounts, useAnalytics, usePosts } from '../api';
@@ -52,12 +52,12 @@ const PostLine = ({ post, right, onClick }: { post: PostDTO; right: ReactNode; o
   </li>
 );
 
-export function Dashboard({ go }: { go: (r: Route) => void }) {
+export function Dashboard({ go, onReview }: { go: (r: Route) => void; onReview?: () => void }) {
   const accounts = useAccounts();
   const posts = usePosts();
   const analytics = useAnalytics(28);
 
-  const header = <PageHeader title="Dashboard" subtitle="Your channels at a glance." actions={<Button variant="primary" onClick={() => go('compose')}><Send className="size-4" aria-hidden /> New post</Button>} />;
+  const header = <PageHeader title="Dashboard" subtitle="Your channels at a glance." actions={<>{onReview && <Button onClick={onReview}><Sparkles className="size-4" aria-hidden /> Weekly review</Button>}<Button variant="primary" onClick={() => go('compose')}><Send className="size-4" aria-hidden /> New post</Button></>} />;
   if (accounts.isLoading || posts.isLoading) return <>{header}<Spinner /></>;
   if (!accounts.data?.length)
     return (
