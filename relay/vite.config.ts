@@ -11,5 +11,6 @@ export default defineConfig({
     port: 5173,
     proxy: { '/api': { target: 'http://localhost:8787', changeOrigin: false } },
   },
-  test: { include: ['tests/**/*.test.ts'], environment: 'node', env: { DATA_DIR: './.test-data', META_GRAPH_VERSION: 'v26.0' } },
+  // Test files share one data folder (database and encryption key), so they run one after another.
+  test: { include: ['tests/**/*.test.ts'], environment: 'node', fileParallelism: false, env: { DATA_DIR: './.test-data', META_GRAPH_VERSION: 'v26.0' } },
 });
