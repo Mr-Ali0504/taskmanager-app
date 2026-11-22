@@ -25,6 +25,18 @@ export type PendingAction =
     }
   | { id: string; kind: 'reply'; channel: { name: string; platform: Platform }; commentAuthor: string; commentText: string; videoTitle: string; text: string };
 
+/** Text written by "Write with AI" for one video: a shared version plus one tailored to each platform. */
+export interface WrittenCopy {
+  title: string;
+  description: string;
+  hashtags: string[];
+  youtube: { title: string; description: string; tags: string[] };
+  instagram: { caption: string };
+  facebook: { title: string; description: string };
+  /** True when still frames from the video were shown to the model. */
+  sawVideo: boolean;
+}
+
 export interface AssistantTurn {
   conversationId: string;
   /** What the assistant said this turn, in order. */

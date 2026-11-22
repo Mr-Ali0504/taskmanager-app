@@ -6,6 +6,7 @@ import type { DraftDTO, GroupDTO, SnippetDTO } from '../../shared/types';
 import { newId } from '../crypto';
 import { AgentError, decide, describeAgentError, sendMessage } from '../agent';
 import { db, schema } from '../db';
+import { writeCopy } from '../writer';
 import { agentConfigured } from '../env';
 
 const { groups, snippets, drafts } = schema;
@@ -60,6 +61,17 @@ export function registerSaved(app: FastifyInstance) {
     const body = z.object({ conversationId: z.string().nullish(), message: z.string().trim().min(1).max(8000), timeZone: z.string().max(64).default('UTC') }).parse(req.body);
     try {
       return await sendMessage(body.conversationId, body.message, body.timeZone);
+    } catch (e) {
+      if (!(e instanceof AgentError)) req.log.error(e);
+      const { status, message } = describeAgentError(e);
+      return reply.code(status).send({ error: message });
+    }
+  });
+  app.post('/api/assistant/write', async (req, reply) => {
+    if (!agentConfigured()) return reply.code(400).send(notConfigured);
+    const body = z.object({ videoId: z.string(), brief: z.string().trim().max(2000), accountIds: z.array(z.string()).max(50) }).parse(req.body);
+    try {
+      return await writeCopy(body);
     } catch (e) {
       if (!(e instanceof AgentError)) req.log.error(e);
       const { status, message } = describeAgentError(e);

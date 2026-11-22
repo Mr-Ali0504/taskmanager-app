@@ -7,6 +7,8 @@ export interface Draft {
   videoId: string | null;
   /** null until the user touches the selection; until then the channels used last time are ticked. */
   accountIds: string[] | null;
+  /** A few words about the video, used by "Write with AI". Never published. */
+  brief: string;
   title: string;
   text: string;
   hashtags: string;
@@ -28,6 +30,7 @@ export const emptyDraft = (): Draft => ({
   draftId: null,
   videoId: null,
   accountIds: null,
+  brief: '',
   title: '',
   text: '',
   hashtags: '',

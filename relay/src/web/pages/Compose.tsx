@@ -1,12 +1,12 @@
 // The publish screen: pick a video, write once, check what each platform will receive, send everywhere.
-import { CalendarClock, CheckCircle2, Film, Radio, Save, Send, Upload, X } from 'lucide-react';
+import { CalendarClock, CheckCircle2, Film, Radio, Save, Send, Sparkles, Undo2, Upload, X } from 'lucide-react';
 import { useRef, useState, type Dispatch, type DragEvent, type ReactNode, type SetStateAction } from 'react';
 import {
   countHashtags, hasErrors, isYouTubeShort, LIMITS, PLATFORM_INFO, PLATFORMS, validateFields, youtubeTagsLength, YOUTUBE_CATEGORIES,
   parseHashtags, type FacebookFields, type InstagramFields, type Issue, type Platform, type VideoMeta, type YouTubeFields,
 } from '../../shared/platforms';
 import type { AccountDTO, VideoDTO } from '../../shared/types';
-import { actions, uploadVideo, useAccounts, useAction, useVideos } from '../api';
+import { actions, uploadVideo, useAccounts, useAction, useSession, useVideos } from '../api';
 import { ChannelPicker } from '../components/ChannelPicker';
 import { SnippetMenu } from '../components/SnippetMenu';
 import type { Route } from '../App';
@@ -259,6 +259,73 @@ function PlatformCard({ platform, accounts, draft, setDraft, video, issues }: { 
   );
 }
 
+// ── Write with AI ────────────────────────────────────────────────────────────
+
+function AiWriter({ draft, setDraft, video, accountIds }: { draft: Draft; setDraft: SetDraft; video: VideoDTO | null; accountIds: string[] }) {
+  const session = useSession();
+  const toast = useToast();
+  const write = useAction(actions.writeCopy);
+  const [before, setBefore] = useState<Draft | null>(null);
+  const [note, setNote] = useState('');
+  if (!session.data?.assistant) return null;
+
+  const hasText = Boolean(draft.title.trim() || draft.text.trim() || draft.hashtags.trim());
+  const run = () => {
+    if (!video) return toast('bad', 'Choose a video first.');
+    if (hasText && !confirm('Replace the title, description and hashtags you have typed with AI-written ones?')) return;
+    write.mutate(
+      { videoId: video.id, brief: draft.brief, accountIds },
+      {
+        onSuccess: (copy) => {
+          setBefore(draft);
+          setNote(copy.sawVideo ? 'Written from your note and frames of the video.' : 'Written from your note only. Install ffmpeg to let it look at the video too.');
+          // Fill the shared fields and give every platform its own tailored version.
+          setDraft((d) => ({
+            ...d,
+            title: copy.title,
+            text: copy.description,
+            hashtags: copy.hashtags.join(' '),
+            custom: { youtube: true, instagram: true, facebook: true },
+            overrides: {
+              youtube: { title: copy.youtube.title, description: copy.youtube.description, tags: copy.youtube.tags.join(', ') },
+              instagram: { caption: copy.instagram.caption },
+              facebook: { title: copy.facebook.title, description: copy.facebook.description },
+            },
+          }));
+        },
+        onError: (e) => toast('bad', (e as Error).message),
+      },
+    );
+  };
+
+  return (
+    <div className="mb-5 rounded-xl border border-accent/40 bg-accent-soft/30 p-4">
+      <p className="mb-2 flex items-center gap-2 text-sm font-semibold"><Sparkles className="size-4 text-accent" aria-hidden /> Write with AI</p>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <input
+          className={inputClass}
+          value={draft.brief}
+          onChange={(e) => setDraft((d) => ({ ...d, brief: e.target.value }))}
+          onKeyDown={(e) => e.key === 'Enter' && !write.isPending && run()}
+          placeholder="Describe the video in a few words, e.g. studio tour after the new lights went in"
+          aria-label="What the video is about"
+        />
+        <Button variant="primary" loading={write.isPending} disabled={!video} onClick={run}>
+          {!write.isPending && <Sparkles className="size-4" aria-hidden />} {write.isPending ? 'Writing…' : before ? 'Write again' : 'Write everything'}
+        </Button>
+      </div>
+      <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-3">
+        {note || 'Fills in the title, description and hashtags, plus a separate version for YouTube, Instagram and Facebook. You can edit everything before publishing.'}
+        {before && (
+          <button type="button" className="inline-flex items-center gap-1 font-medium text-accent hover:underline" onClick={() => (setDraft({ ...before, brief: draft.brief }), setBefore(null), setNote(''))}>
+            <Undo2 className="size-3.5" aria-hidden /> Undo
+          </button>
+        )}
+      </p>
+    </div>
+  );
+}
+
 // ── The page ─────────────────────────────────────────────────────────────────
 
 export function Compose({ draft, setDraft, go }: { draft: Draft; setDraft: SetDraft; go: (r: Route) => void }) {
@@ -356,6 +423,7 @@ export function Compose({ draft, setDraft, go }: { draft: Draft; setDraft: SetDr
           </Step>
 
           <Step n={3} title="Write it once">
+            <AiWriter draft={draft} setDraft={setDraft} video={video} accountIds={selectedIds} />
             <div className="space-y-4">
               <Field label="Title" hint="Used as the YouTube and Facebook title, and as the first line of the Instagram caption." count={draft.title.length} max={LIMITS.youtube.title}>
                 <input className={inputClass} value={draft.title} onChange={(e) => set({ title: e.target.value })} placeholder="What is this video about?" />

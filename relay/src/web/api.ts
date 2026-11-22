@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AccountAnalytics, AccountDTO, CommentsResponse, CreatePostBody, DraftDTO, GroupDTO, PostDTO, SessionInfo, SnippetDTO, VideoDTO } from '../shared/types';
+import type { AccountAnalytics, AccountDTO, CommentsResponse, CreatePostBody, DraftDTO, GroupDTO, PostDTO, SessionInfo, SnippetDTO, VideoDTO, WrittenCopy } from '../shared/types';
 
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -59,6 +59,7 @@ export const actions = {
   createPost: (body: CreatePostBody) => api<PostDTO>('/posts', post(body)),
   publishPost: (id: string) => api<PostDTO>(`/posts/${id}/publish`, post()),
   deletePost: (id: string) => api(`/posts/${id}`, { method: 'DELETE' }),
+  writeCopy: (body: { videoId: string; brief: string; accountIds: string[] }) => api<WrittenCopy>('/assistant/write', post(body)),
   saveGroup: (body: { name: string; accountIds: string[] }) => api<GroupDTO>('/groups', post(body)),
   deleteGroup: (id: string) => api(`/groups/${id}`, { method: 'DELETE' }),
   saveSnippet: (body: Omit<SnippetDTO, 'id'>) => api<SnippetDTO>('/snippets', post(body)),

@@ -132,4 +132,27 @@ describe('assistant', () => {
     expect(ig.reach_last_7_days).toBeGreaterThan(0);
     expect(report.notes.some((n) => n.includes('made-up'))).toBe(true);
   });
+
+  it('writes copy per platform, sends the note and recent titles, and enforces platform limits', async () => {
+    const { writeCopy } = await import('../src/server/writer');
+    const long = 'A'.repeat(140);
+    script.push([{ type: 'text', text: JSON.stringify({
+      title: 'Lights up', description: 'The studio has lights now.', hashtags: ['#Studio', 'studio', 'bts'],
+      youtube: { title: `${long} <b>`, description: 'First line.\n\nMore. #studio', tags: ['studio', 'lighting'] },
+      instagram: { caption: 'Finally lit.\n\n#studio #bts' },
+      facebook: { title: 'Lights up', description: 'What do you think?' },
+    }) }]);
+    const copy = await writeCopy({ videoId: ids.video, brief: 'studio lights installed', accountIds: [ids.youtube] });
+    expect(copy.youtube.title.length).toBeLessThanOrEqual(100);
+    expect(copy.youtube.title).not.toMatch(/[<>]/);
+    expect(copy.hashtags).toEqual(['Studio', 'bts']);
+    expect(copy.instagram.caption).toContain('#studio');
+    const sent = requests.at(-1);
+    expect(sent.model).toBe('claude-haiku-5-5');
+    expect(sent.output_config.format.type).toBe('json_schema');
+    const textPart = sent.messages[0].content.find((b: any) => b.type === 'text').text;
+    expect(textPart).toContain('studio lights installed');
+    expect(textPart).toContain('Recent titles on Demo Channel');
+    await expect(writeCopy({ videoId: 'missing', brief: 'x', accountIds: [] })).rejects.toThrow(/Choose a video/);
+  });
 });

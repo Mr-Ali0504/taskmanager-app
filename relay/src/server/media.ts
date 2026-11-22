@@ -2,6 +2,9 @@
 // Uses ffprobe/ffmpeg when they are installed (they are in the Docker image); without them
 // the app still works, the browser-reported metadata is used and there is no thumbnail.
 import { execFile } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { promisify } from 'node:util';
 
 const run = promisify(execFile);
@@ -29,5 +32,30 @@ export async function makeThumbnail(filePath: string, outPath: string, atSec: nu
     return true;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Grabs a few still frames spread across the video, as small JPEGs, so the AI writer can see what the video shows.
+ * Returns an empty list when ffmpeg is not installed; the writer then works from the description alone.
+ */
+export async function extractFrames(filePath: string, durationSec: number | null, count = 4): Promise<Buffer[]> {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'relay-frames-'));
+  try {
+    const length = durationSec && durationSec > 0 ? durationSec : 8;
+    const frames: Buffer[] = [];
+    for (let i = 0; i < count; i++) {
+      const out = path.join(dir, `${i}.jpg`);
+      const at = (length * (i + 0.5)) / count;
+      try {
+        await run('ffmpeg', ['-y', '-v', 'error', '-ss', at.toFixed(2), '-i', filePath, '-frames:v', '1', '-vf', 'scale=512:512:force_original_aspect_ratio=decrease', '-q:v', '6', out], { timeout: 20_000 });
+        frames.push(fs.readFileSync(out));
+      } catch {
+        if (i === 0) return []; // ffmpeg missing or the file is unreadable: no point trying the rest
+      }
+    }
+    return frames;
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 }

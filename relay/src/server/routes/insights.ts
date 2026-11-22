@@ -56,7 +56,7 @@ export async function recordAllSnapshots() {
   }
 }
 
-const recentVideos = (account: AccountRow) => cached(`videos:${account.id}`, () => adapterFor(account).listVideos(account, 12));
+export const recentVideos = (account: AccountRow) => cached(`videos:${account.id}`, () => adapterFor(account).listVideos(account, 12));
 
 async function analyticsFor(account: AccountRow, days: number): Promise<AccountAnalytics> {
   const adapter = adapterFor(account);
