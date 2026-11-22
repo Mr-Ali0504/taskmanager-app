@@ -70,6 +70,25 @@ docker compose up -d --build
 
 Both serve the app on http://localhost:8787. Set `PUBLIC_URL` in `.env` to the address you actually open, and set `APP_PASSWORD` before exposing it beyond your own machine.
 
+## Putting it on a domain
+
+To use the app from your phone or another computer, run it on a server that stays on. It needs a machine with a disk (videos and the database are stored on it), so use a small virtual server (VPS) rather than a serverless host.
+
+1. Rent a VPS with Docker (2 GB of memory is enough; pick disk size for your videos) and point your domain or a subdomain at its IP address with a DNS **A record**.
+2. Copy this folder to the server (`git clone`), then create `.env` from `.env.example` and set:
+   - `APP_PASSWORD` to a long, unique password. The app refuses to start on a public address without it.
+   - `DOMAIN=studio.example.com` and `PUBLIC_URL=https://studio.example.com`
+   - your Google, Meta and Anthropic keys.
+3. Start it:
+   ```bash
+   docker compose --profile web up -d --build
+   ```
+   Caddy obtains and renews the HTTPS certificate by itself.
+4. In the Google and Meta consoles, add the new redirect addresses: `https://studio.example.com/api/oauth/google/callback` and `https://studio.example.com/api/oauth/meta/callback`.
+5. Open the site, sign in with your password, and connect your channels again on the Channels page. Connections made on your own computer do not carry over.
+
+Back up the `relay_data` Docker volume: it holds your library, history and connections.
+
 ## Connecting your real accounts
 
 The platforms only let apps publish through their official APIs, and each needs you to register a (free) developer app once. This is a one-time setup of about 20 minutes.

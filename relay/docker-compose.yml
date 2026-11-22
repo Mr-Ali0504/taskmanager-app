@@ -1,15 +1,35 @@
-# docker compose up -d --build   ->  http://localhost:8787
+# Local trial:           docker compose up -d --build            ->  http://localhost:8787
+# On a server + domain:  docker compose --profile web up -d --build   ->  https://your-domain
+#   (set DOMAIN, PUBLIC_URL and APP_PASSWORD in .env first; see README "Putting it on a domain")
 services:
   relay:
     build: .
     restart: unless-stopped
     ports:
-      - "8787:8787"
+      - "127.0.0.1:8787:8787"   # only this machine; the outside world comes in through Caddy
     env_file: .env
     environment:
+      HOST: 0.0.0.0
       PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8787}
     volumes:
       - relay_data:/data   # database, uploaded videos, encryption key
 
+  # HTTPS front door. Only started with "--profile web".
+  caddy:
+    image: caddy:2
+    profiles: [web]
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on:
+      - relay
+
 volumes:
   relay_data:
+  caddy_data:

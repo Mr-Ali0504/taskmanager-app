@@ -20,6 +20,7 @@ export const useSession = () => useQuery({ queryKey: ['session'], queryFn: () =>
 export const useAccounts = (enabled = true) => useQuery({ queryKey: ['accounts'], queryFn: () => api<AccountDTO[]>('/accounts'), enabled });
 export const useVideos = () => useQuery({ queryKey: ['videos'], queryFn: () => api<VideoDTO[]>('/videos') });
 
+export const useStorage = () => useQuery({ queryKey: ['storage'], queryFn: () => api<{ usedBytes: number; freeBytes: number }>('/storage') });
 export const useGroups = () => useQuery({ queryKey: ['groups'], queryFn: () => api<GroupDTO[]>('/groups') });
 export const useSnippets = () => useQuery({ queryKey: ['snippets'], queryFn: () => api<SnippetDTO[]>('/snippets') });
 export const useDrafts = () => useQuery({ queryKey: ['drafts'], queryFn: () => api<DraftDTO[]>('/drafts') });

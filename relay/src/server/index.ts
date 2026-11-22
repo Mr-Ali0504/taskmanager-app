@@ -15,6 +15,13 @@ import { registerSaved } from './routes/saved';
 import { registerPosts } from './routes/posts';
 import { registerVideos } from './routes/videos';
 
+// On a public address the app holds the keys to the owner's channels, so it must not start without a password.
+const local = ['127.0.0.1', 'localhost', '::1'].includes(env.host) && /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(env.publicUrl);
+if (!env.appPassword && !local) {
+  console.error('Refusing to start: APP_PASSWORD is not set, and this server is reachable from outside this machine.\nSet APP_PASSWORD (a long, unique password) in the environment or .env and start again.');
+  process.exit(1);
+}
+
 runMigrations();
 
 const app = Fastify({ logger: { level: env.isProd ? 'info' : 'warn' }, trustProxy: true });
@@ -23,6 +30,13 @@ await app.register(cookie);
 await app.register(multipart, { limits: { fileSize: env.maxUploadBytes, files: 1 } });
 // Gives routes reply.sendFile(), which handles HTTP range requests so videos can be scrubbed in the browser.
 await app.register(fastifyStatic, { root: env.uploadsDir, serve: false });
+
+app.addHook('onSend', async (_req, reply) => {
+  reply.header('x-content-type-options', 'nosniff');
+  reply.header('x-frame-options', 'DENY');
+  reply.header('referrer-policy', 'same-origin');
+  if (env.publicUrl.startsWith('https://')) reply.header('strict-transport-security', 'max-age=15552000');
+});
 
 app.setErrorHandler((error: Error & { statusCode?: number }, req, reply) => {
   if (error instanceof ZodError) return reply.code(400).send({ error: error.issues[0]?.message ?? 'Invalid request.' });
@@ -37,6 +51,13 @@ registerVideos(app);
 registerPosts(app);
 registerInsights(app);
 registerSaved(app);
+
+// How much room is left for videos, shown in the Library.
+app.get('/api/storage', async () => {
+  const stat = fs.statfsSync(env.uploadsDir);
+  const used = fs.readdirSync(env.uploadsDir).reduce((n, f) => n + fs.statSync(path.join(env.uploadsDir, f)).size, 0);
+  return { usedBytes: used, freeBytes: Number(stat.bavail) * Number(stat.bsize) };
+});
 
 // In production this same server also serves the built UI.
 const webDir = path.resolve('dist/web');

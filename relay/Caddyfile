@@ -1,0 +1,5 @@
+# Caddy sits in front of the app, gets an HTTPS certificate for your domain automatically and renews it.
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy relay:8787
+}

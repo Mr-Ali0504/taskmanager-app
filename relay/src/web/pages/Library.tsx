@@ -1,7 +1,7 @@
 // Uploaded videos, ready to be published or reused.
 import { Clapperboard, Film, Send, Trash2, Upload } from 'lucide-react';
 import { useRef, useState, type Dispatch, type SetStateAction } from 'react';
-import { actions, uploadVideo, useAction, useVideos } from '../api';
+import { actions, uploadVideo, useAction, useStorage, useVideos } from '../api';
 import type { Route } from '../App';
 import { Badge, Button, Card, EmptyState, ErrorNote, PageHeader, Spinner, useToast } from '../components/ui';
 import { emptyDraft, type Draft } from '../draft';
@@ -9,11 +9,12 @@ import { formatBytes, formatDuration, orientation, timeAgo } from '../lib';
 
 export function Library({ go, setDraft }: { go: (r: Route) => void; setDraft: Dispatch<SetStateAction<Draft>> }) {
   const videos = useVideos();
+  const storage = useStorage();
   const toast = useToast();
   const input = useRef<HTMLInputElement>(null);
   const [progress, setProgress] = useState<number | null>(null);
-  const upload = useAction((file: File) => uploadVideo(file, setProgress), ['videos']);
-  const remove = useAction(actions.deleteVideo, ['videos', 'posts']);
+  const upload = useAction((file: File) => uploadVideo(file, setProgress), ['videos', 'storage']);
+  const remove = useAction(actions.deleteVideo, ['videos', 'posts', 'storage']);
 
   const start = (file?: File) => {
     if (!file) return;
@@ -28,7 +29,7 @@ export function Library({ go, setDraft }: { go: (r: Route) => void; setDraft: Di
   );
   const header = (
     <>
-      <PageHeader title="Library" subtitle="Videos you have uploaded. Publish any of them again without re-uploading." actions={uploadButton} />
+      <PageHeader title="Library" subtitle={`Videos you have uploaded. Publish any of them again without re-uploading.${storage.data ? ` ${formatBytes(storage.data.usedBytes)} used, ${formatBytes(storage.data.freeBytes)} free.` : ''}`} actions={uploadButton} />
       <input ref={input} type="file" accept="video/*" hidden onChange={(e) => (start(e.target.files?.[0]), (e.target.value = ''))} />
     </>
   );
