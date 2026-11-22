@@ -109,6 +109,7 @@ Add `ANTHROPIC_API_KEY` to `.env` (create a key in the Claude Console) and resta
 - Publishing and replying are only ever **proposed**. You see exactly what will go out and click Approve or Decline. This is deliberate: comments are written by strangers, and the approval step means text in a comment can never make the app post something by itself.
 - Videos must be in the Library first; the assistant picks from there.
 - Conversations are kept in memory and reset when the server restarts.
+- It uses Claude Haiku 5.5 by default, the cheapest current model. Set `AGENT_MODEL` in `.env` (for example `claude-sonnet-5-5`) if you want stronger writing at a higher price.
 - Requests go to Anthropic's API and are billed to your account. Treat the key like a password: keep it in `.env` only.
 
 ## Good to know

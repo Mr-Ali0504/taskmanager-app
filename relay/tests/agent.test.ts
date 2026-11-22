@@ -20,7 +20,7 @@ beforeAll(async () => {
       requests.push(JSON.parse(body));
       const content = script.shift() ?? [{ type: 'text', text: 'Done.' }];
       res.setHeader('content-type', 'application/json');
-      res.end(JSON.stringify({ id: 'msg_test', type: 'message', role: 'assistant', model: 'claude-opus-5-5', content, stop_reason: content.some((b) => b.type === 'tool_use') ? 'tool_use' : 'end_turn', stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 } }));
+      res.end(JSON.stringify({ id: 'msg_test', type: 'message', role: 'assistant', model: 'claude-haiku-5-5', content, stop_reason: content.some((b) => b.type === 'tool_use') ? 'tool_use' : 'end_turn', stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 } }));
     });
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
@@ -58,7 +58,8 @@ describe('assistant', () => {
     expect(postCount()).toBe(0);
     // Both lookups went back in one message, and the request carried the documented options.
     expect(requests[1].messages.at(-1).content.map((b: any) => b.tool_use_id).sort()).toEqual(['t1', 't2']);
-    expect(requests[0]).toMatchObject({ model: 'claude-opus-5-5', fallbacks: 'default', output_config: { effort: 'medium' } });
+    expect(requests[0]).toMatchObject({ model: 'claude-haiku-5-5', output_config: { effort: 'medium' } });
+    expect(requests[0].fallbacks).toBeUndefined(); // Haiku has no server-side fallback
     expect(requests[0].tools.every((t: any) => t.strict && t.input_schema.additionalProperties === false)).toBe(true);
     expect(requests[0].messages[0].content).toContain('time zone Asia/Kolkata');
 

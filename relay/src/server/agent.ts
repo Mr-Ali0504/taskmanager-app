@@ -196,6 +196,14 @@ function prepareReply(convo: Conversation, raw: unknown): { view: PendingAction;
 const text = (value: unknown) => JSON.stringify(value);
 const failure = (use: ToolUse, e: unknown): ToolResult => ({ type: 'tool_result', tool_use_id: use.id, is_error: true, content: e instanceof Error ? e.message : 'The tool failed.' });
 
+/**
+ * On larger models, a request declined by a safety classifier can be retried on a fallback model in the same call.
+ * Claude Haiku has no server-side fallback, so the option is left out there.
+ */
+function fallbackOptions(): { betas?: ['server-side-fallback-2026-07-01']; fallbacks?: 'default' } {
+  return agentModel().includes('haiku') ? {} : { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' };
+}
+
 /** Calls the model repeatedly, running read-only tools, until it finishes its turn or proposes an action. */
 async function advance(id: string, convo: Conversation): Promise<AssistantTurn> {
   const turn: AssistantTurn = { conversationId: id, texts: [], steps: [], pending: [] };
@@ -208,9 +216,7 @@ async function advance(id: string, convo: Conversation): Promise<AssistantTurn> 
       messages: convo.messages,
       output_config: { effort: 'medium' },
       cache_control: { type: 'ephemeral' },
-      // If a safety classifier declines a request, the API retries it on a fallback model in the same call.
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
+      ...fallbackOptions(),
     });
     // Keep the full content (including thinking blocks) so the next request continues correctly.
     convo.messages.push({ role: 'assistant', content: response.content as Anthropic.Beta.BetaContentBlockParam[] });
