@@ -44,6 +44,7 @@ async function publishTarget(target: TargetRow, video: VideoRow) {
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Unknown error';
     setTarget(target.id, { status: 'failed', error: message });
+    console.error(`[publish] ${target.platform} / ${target.accountName} failed: ${message}`);
     if (e instanceof PlatformError && e.needsReauth)
       db.update(accounts).set({ status: 'needs_reauth' }).where(eq(accounts.id, target.accountId)).run();
   }

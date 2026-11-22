@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import type { FacebookFields } from '../../shared/platforms';
 import { env } from '../env';
-import { requestJson, toInt } from './http';
+import { requestJson, step, toInt } from './http';
 import { graphGet, graphPost, insightPoints, pageToken, rupload, sinceUntil } from './meta';
 import type { PlatformAdapter } from './types';
 
@@ -14,15 +14,17 @@ export const facebook: PlatformAdapter<FacebookFields> = {
     const page = account.externalId;
 
     if (fields.format === 'reel') {
-      const start = await graphPost<{ video_id: string; upload_url: string }>(token, `${page}/video_reels`, { upload_phase: 'start' });
-      await rupload(start.upload_url, token, filePath, sizeBytes, (p) => onProgress('uploading', p));
+      const start = await step('Facebook Reel, starting (step 1 of 3)', () => graphPost<{ video_id: string; upload_url: string }>(token, `${page}/video_reels`, { upload_phase: 'start' }));
+      await step('Facebook Reel, sending the video file (step 2 of 3)', () => rupload(start.upload_url, token, filePath, sizeBytes, (p) => onProgress('uploading', p)));
       onProgress('processing', 100);
-      await graphPost(token, `${page}/video_reels`, {
-        upload_phase: 'finish',
-        video_id: start.video_id,
-        video_state: 'PUBLISHED',
-        description: fields.description,
-      });
+      await step('Facebook Reel, publishing (step 3 of 3)', () =>
+        graphPost(token, `${page}/video_reels`, {
+          upload_phase: 'finish',
+          video_id: start.video_id,
+          video_state: 'PUBLISHED',
+          description: fields.description,
+        }),
+      );
       return { externalId: start.video_id, url: `https://www.facebook.com/reel/${start.video_id}` };
     }
 
@@ -33,7 +35,7 @@ export const facebook: PlatformAdapter<FacebookFields> = {
     form.set('description', fields.description);
     form.set('source', await fs.openAsBlob(filePath, { type: mime }), 'video');
     onProgress('uploading', 50); // multipart uploads give no byte-level progress
-    const video = await requestJson<{ id: string }>(`https://graph-video.facebook.com/${env.meta.graphVersion}/${page}/videos`, { method: 'POST', body: form });
+    const video = await step('Facebook video upload', () => requestJson<{ id: string }>(`https://graph-video.facebook.com/${env.meta.graphVersion}/${page}/videos`, { method: 'POST', body: form }));
     return { externalId: video.id, url: `https://www.facebook.com/${page}/videos/${video.id}` };
   },
 

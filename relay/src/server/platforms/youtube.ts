@@ -6,7 +6,7 @@ import { decrypt, encrypt } from '../crypto';
 import { db, schema } from '../db';
 import type { AccountRow } from '../db/schema';
 import { env } from '../env';
-import { fileBody, isoDay, qs, requestJson, toInt } from './http';
+import { fileBody, isoDay, qs, requestJson, step, toInt } from './http';
 import { PlatformError, type PlatformAdapter } from './types';
 
 const API = 'https://www.googleapis.com/youtube/v3';
@@ -63,15 +63,24 @@ export const youtube: PlatformAdapter<YouTubeFields> = {
     });
     const sessionUrl = init.headers.get('location');
     if (!init.ok || !sessionUrl) {
-      const body = await init.json().catch(() => null);
-      throw new PlatformError(body?.error?.message ?? `YouTube refused the upload (HTTP ${init.status}).`, init.status === 401);
+      const raw = await init.text().catch(() => '');
+      let detail = '';
+      try {
+        const e = JSON.parse(raw)?.error;
+        detail = [e?.message, Array.isArray(e?.errors) ? e.errors.map((x: any) => x?.reason).filter(Boolean).join(', ') : ''].filter(Boolean).join(' / ');
+      } catch {
+        detail = raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 400);
+      }
+      throw new PlatformError(`YouTube, starting the upload (step 1 of 2): ${detail || `HTTP ${init.status} with an empty response`}`, init.status === 401);
     }
     // Step 2: send the file bytes to the session URL.
-    const video = await requestJson<{ id: string }>(sessionUrl, {
-      method: 'PUT',
-      headers: { 'content-type': mime, 'content-length': String(sizeBytes) },
-      ...fileBody(filePath, sizeBytes, (p) => onProgress('uploading', p)),
-    });
+    const video = await step('YouTube, sending the video file (step 2 of 2)', () =>
+      requestJson<{ id: string }>(sessionUrl, {
+        method: 'PUT',
+        headers: { 'content-type': mime, 'content-length': String(sizeBytes) },
+        ...fileBody(filePath, sizeBytes, (p) => onProgress('uploading', p)),
+      }),
+    );
     return { externalId: video.id, url: `https://www.youtube.com/watch?v=${video.id}` };
   },
 

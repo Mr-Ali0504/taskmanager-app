@@ -60,7 +60,7 @@ describe('YouTube publish', () => {
     fakeNetwork([() => json({ error: { message: 'The request cannot be completed because you have exceeded your quota.' } }, { status: 403 })]);
     await expect(
       youtube.publish({ ...ctx, account: account('youtube', 'UCabc', { accessToken: 't', refreshToken: 'r', expiresAt: Date.now() + 3_600_000 }), fields: { title: 'T', description: '', tags: [], categoryId: '22', privacy: 'public', madeForKids: false, notifySubscribers: true } }),
-    ).rejects.toThrow(/exceeded your quota/);
+    ).rejects.toThrow(/YouTube, starting the upload.*exceeded your quota/);
   });
 });
 
@@ -105,5 +105,20 @@ describe('Facebook publish', () => {
     await facebook.publish({ ...ctx, account: account('facebook', '555', { pageToken: 'ptok' }), fields: { format: 'video', title: 'Title', description: 'Desc' } });
     expect(calls[0].url).toBe('https://graph-video.facebook.com/v26.0/555/videos');
     expect(calls[0].body.split(',').sort()).toEqual(['access_token', 'description', 'source', 'title']);
+  });
+});
+
+describe('error messages', () => {
+  it('reads the error format of Meta\'s upload host and names the failed step', async () => {
+    fakeNetwork([() => json({ id: 'c1', uri: 'https://rupload.facebook.com/x' }), () => json({ debug_info: { retriable: false, type: 'ProcessingFailedError', message: 'Request processing failed' } }, { status: 400 })]);
+    await expect(instagram.publish({ ...ctx, account: account('instagram', '1', { pageToken: 'p' }), fields: { caption: '', shareToFeed: true } })).rejects.toThrow(
+      'Instagram, sending the video file (step 2 of 4): ProcessingFailedError: Request processing failed',
+    );
+  });
+  it('includes Meta error codes and falls back to the raw text for unknown formats', async () => {
+    fakeNetwork([() => json({ error: { message: 'Unsupported post request.', code: 100, error_subcode: 33 } }, { status: 400 })]);
+    await expect(instagram.publish({ ...ctx, account: account('instagram', '1', { pageToken: 'p' }), fields: { caption: '', shareToFeed: true } })).rejects.toThrow(/step 1 of 4\): Unsupported post request\. \(code 100, subcode 33\)/);
+    fakeNetwork([() => new Response('<html><body>Bad Request: malformed</body></html>', { status: 400 })]);
+    await expect(facebook.publish({ ...ctx, account: account('facebook', '5', { pageToken: 'p' }), fields: { format: 'video', title: '', description: '' } })).rejects.toThrow(/Facebook video upload: HTTP 400: Bad Request: malformed/);
   });
 });

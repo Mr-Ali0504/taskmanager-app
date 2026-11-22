@@ -28,7 +28,7 @@ export const graphPost = <T = any>(token: string, path: string, params: Params =
 export const rupload = (url: string, token: string, filePath: string, sizeBytes: number, onPercent: (p: number) => void) =>
   requestJson(url, {
     method: 'POST',
-    headers: { authorization: `OAuth ${token}`, offset: '0', file_size: String(sizeBytes), 'content-length': String(sizeBytes) },
+    headers: { authorization: `OAuth ${token}`, offset: '0', file_size: String(sizeBytes), 'content-length': String(sizeBytes), 'content-type': 'application/octet-stream' },
     ...fileBody(filePath, sizeBytes, onPercent),
   });
 

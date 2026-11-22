@@ -2,18 +2,33 @@ import fs from 'node:fs';
 import { Readable } from 'node:stream';
 import { PlatformError } from './types';
 
-/** Pulls the human-readable message out of a Google or Meta error body. */
-function describeError(status: number, body: unknown): { message: string; needsReauth: boolean } {
-  const e = (body as { error?: unknown })?.error;
-  let message = `Request failed (HTTP ${status})`;
+/**
+ * Pulls a readable message out of an error response. Google and Meta use several shapes
+ * ({error:{message}}, {error:"...", error_description}, and Meta's upload hosts use {debug_info:{message}}),
+ * so anything unrecognised falls back to the raw response text rather than a bare status code.
+ */
+function describeError(status: number, body: unknown, raw: string): { message: string; needsReauth: boolean } {
+  const o = (body && typeof body === 'object' ? body : {}) as Record<string, any>;
+  const e = o.error;
+  let message = '';
   let code: unknown;
   if (typeof e === 'string') {
-    message = (body as { error_description?: string }).error_description ?? e;
+    message = o.error_description ?? e;
     code = e;
   } else if (e && typeof e === 'object') {
-    const o = e as { message?: string; error_user_msg?: string; code?: unknown; status?: string };
-    message = o.error_user_msg || o.message || message;
-    code = o.code;
+    message = [e.error_user_title, e.error_user_msg || e.message].filter(Boolean).join(': ');
+    code = e.code;
+    // Meta's numeric codes are what its documentation and support pages are indexed by.
+    const codes = [e.code != null && `code ${e.code}`, e.error_subcode != null && `subcode ${e.error_subcode}`].filter(Boolean).join(', ');
+    if (codes) message += ` (${codes})`;
+    const reasons = Array.isArray(e.errors) ? e.errors.map((x: any) => x?.reason).filter(Boolean).join(', ') : '';
+    if (reasons) message += ` [${reasons}]`;
+  } else if (o.debug_info && typeof o.debug_info === 'object') {
+    message = [o.debug_info.type, o.debug_info.message].filter(Boolean).join(': ');
+  }
+  if (!message.trim()) {
+    const text = raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    message = text ? `HTTP ${status}: ${text.slice(0, 400)}` : `HTTP ${status} with an empty response`;
   }
   // 401 from Google, OAuthException 190 from Meta, or a revoked refresh token.
   const needsReauth = status === 401 || code === 190 || code === 'invalid_grant';
@@ -27,13 +42,24 @@ export async function requestJson<T = any>(url: string, init: RequestInit = {}):
   try {
     body = text ? JSON.parse(text) : null;
   } catch {
-    body = { error: { message: text.slice(0, 300) } };
+    body = null;
   }
-  if (!res.ok || (body && typeof body === 'object' && 'error' in body && (body as any).error)) {
-    const { message, needsReauth } = describeError(res.status, body);
+  const failed = !res.ok || Boolean(body && typeof body === 'object' && ((body as any).error || ((body as any).debug_info && (body as any).success === false)));
+  if (failed) {
+    const { message, needsReauth } = describeError(res.status, body, text);
     throw new PlatformError(message, needsReauth);
   }
   return body as T;
+}
+
+/** Names the step that failed, so an error says where in a multi-step upload things went wrong. */
+export async function step<T>(label: string, run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (e) {
+    if (e instanceof PlatformError) throw new PlatformError(`${label}: ${e.message}`, e.needsReauth);
+    throw new PlatformError(`${label}: ${e instanceof Error ? ((e.cause as Error | undefined)?.message ?? e.message) : 'unknown error'}`);
+  }
 }
 
 export const qs = (params: Record<string, string | number | boolean | undefined>) =>

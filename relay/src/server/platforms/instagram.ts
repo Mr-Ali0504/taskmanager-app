@@ -1,7 +1,7 @@
 // Instagram API with Facebook Login: content publishing, insights and comments.
 // Docs: https://developers.facebook.com/docs/instagram-platform/content-publishing
 import type { InstagramFields } from '../../shared/platforms';
-import { sleep, toInt } from './http';
+import { sleep, step, toInt } from './http';
 import { GRAPH, graphGet, graphPost, insightPoints, pageToken, rupload, sinceUntil } from './meta';
 import { PlatformError, type PlatformAdapter } from './types';
 
@@ -11,22 +11,24 @@ export const instagram: PlatformAdapter<InstagramFields> = {
     const ig = account.externalId;
 
     // Step 1: create a Reel "container" that expects a direct (resumable) upload.
-    const container = await graphPost<{ id: string; uri?: string }>(token, `${ig}/media`, {
-      media_type: 'REELS',
-      upload_type: 'resumable',
-      caption: fields.caption,
-      share_to_feed: fields.shareToFeed,
-    });
+    const container = await step('Instagram, creating the Reel (step 1 of 4)', () =>
+      graphPost<{ id: string; uri?: string }>(token, `${ig}/media`, {
+        media_type: 'REELS',
+        upload_type: 'resumable',
+        caption: fields.caption,
+        share_to_feed: fields.shareToFeed,
+      }),
+    );
 
     // Step 2: send the file to Meta's upload host.
     const uploadUrl = container.uri ?? `${GRAPH().replace('graph.facebook.com', 'rupload.facebook.com/ig-api-upload')}/${container.id}`;
-    await rupload(uploadUrl, token, filePath, sizeBytes, (p) => onProgress('uploading', p));
+    await step('Instagram, sending the video file (step 2 of 4)', () => rupload(uploadUrl, token, filePath, sizeBytes, (p) => onProgress('uploading', p)));
 
     // Step 3: Instagram transcodes the video; wait until the container is ready.
     onProgress('processing', 100);
     const deadline = Date.now() + 15 * 60_000;
     for (;;) {
-      const state = await graphGet<{ status_code: string; status?: string }>(token, container.id, { fields: 'status_code,status' });
+      const state = await step('Instagram, checking processing (step 3 of 4)', () => graphGet<{ status_code: string; status?: string }>(token, container.id, { fields: 'status_code,status' }));
       if (state.status_code === 'FINISHED') break;
       if (state.status_code === 'ERROR' || state.status_code === 'EXPIRED')
         throw new PlatformError(`Instagram could not process the video${state.status ? `: ${state.status}` : '.'}`);
@@ -35,7 +37,7 @@ export const instagram: PlatformAdapter<InstagramFields> = {
     }
 
     // Step 4: publish the container.
-    const media = await graphPost<{ id: string }>(token, `${ig}/media_publish`, { creation_id: container.id });
+    const media = await step('Instagram, publishing (step 4 of 4)', () => graphPost<{ id: string }>(token, `${ig}/media_publish`, { creation_id: container.id }));
     const info = await graphGet<{ permalink?: string }>(token, media.id, { fields: 'permalink' }).catch(() => ({ permalink: undefined }));
     return { externalId: media.id, url: info.permalink ?? null };
   },
