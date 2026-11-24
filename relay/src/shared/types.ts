@@ -186,3 +186,55 @@ export interface CommentsResponse {
   comments: RemoteComment[];
   errors: { accountId: string; message: string }[];
 }
+
+// ── Performance: a video's first hours against the ones before it ───────────
+
+export type PerformanceMetric = 'views' | 'likes' | 'comments' | 'shares';
+
+export interface PerformanceVideo {
+  id: string;
+  title: string;
+  url: string | null;
+  thumbnailUrl: string | null;
+  publishedAt: number;
+  /** Hours since it was published, right now. */
+  ageHours: number;
+  /** Latest known totals. */
+  current: Record<PerformanceMetric, number | null>;
+  /** Value at each whole hour since publishing (index = hour). null where the app has no reading. */
+  hourly: Record<PerformanceMetric, (number | null)[]>;
+  /** Age in hours of the first reading. Above a few hours means the early curve was not recorded. */
+  trackedFromHour: number | null;
+}
+
+export type BreakoutLevel = 'breakout' | 'ahead' | 'typical' | 'below' | 'unknown';
+
+export interface PerformanceVerdict {
+  level: BreakoutLevel;
+  /** The age, in hours, at which the videos are compared (the newest video's age, capped by the chosen window). */
+  comparedAtHour: number;
+  latestViews: number | null;
+  /** Median views of the earlier videos at the same age. */
+  usualViews: number | null;
+  /** latestViews / usualViews. */
+  ratio: number | null;
+  comparedWith: number;
+  trend: 'accelerating' | 'steady' | 'slowing' | null;
+  /** Expected views at 24 hours if it keeps following the shape of the earlier videos. */
+  projected24h: number | null;
+  usual24h: number | null;
+  /** Shares per 1,000 views, newest against the usual. Shares are the strongest spreading signal. */
+  sharesPer1000: { latest: number; usual: number } | null;
+  reasons: string[];
+}
+
+export interface PerformanceReport {
+  account: AccountDTO;
+  hours: number;
+  latest: PerformanceVideo | null;
+  previous: PerformanceVideo[];
+  verdict: PerformanceVerdict | null;
+  /** When the app last read this channel's numbers. */
+  lastReadingAt: number | null;
+  error: string | null;
+}

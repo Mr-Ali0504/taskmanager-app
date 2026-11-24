@@ -107,6 +107,38 @@ export const snapshots = sqliteTable(
   (t) => [primaryKey({ columns: [t.accountId, t.date] })],
 );
 
+/** A video the app is following hour by hour. Kept so it can still be compared after it leaves the "recent" list. */
+export const trackedVideos = sqliteTable(
+  'tracked_videos',
+  {
+    accountId: text('account_id').notNull(),
+    videoId: text('video_id').notNull(),
+    title: text('title').notNull(),
+    url: text('url'),
+    thumbnailUrl: text('thumbnail_url'),
+    publishedAt: integer('published_at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.accountId, t.videoId] })],
+);
+
+/**
+ * One reading of a video's totals at a moment in time. The platforms only report running totals,
+ * so the hour-by-hour curve of a video is rebuilt from these readings.
+ */
+export const videoStats = sqliteTable(
+  'video_stats',
+  {
+    accountId: text('account_id').notNull(),
+    videoId: text('video_id').notNull(),
+    at: integer('at').notNull(),
+    views: integer('views'),
+    likes: integer('likes'),
+    comments: integer('comments'),
+    shares: integer('shares'),
+  },
+  (t) => [primaryKey({ columns: [t.accountId, t.videoId, t.at] })],
+);
+
 export type AccountRow = typeof accounts.$inferSelect;
 export type VideoRow = typeof videos.$inferSelect;
 export type PostRow = typeof posts.$inferSelect;

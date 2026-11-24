@@ -2,11 +2,12 @@
 import { and, asc, eq, gte } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import type { AccountAnalytics, CommentsResponse, RemoteComment, RemoteVideo } from '../../shared/types';
+import type { AccountAnalytics, CommentsResponse, PerformanceReport, RemoteComment, RemoteVideo } from '../../shared/types';
 import { db, schema } from '../db';
 import type { AccountRow } from '../db/schema';
 import { adapterFor, PlatformError } from '../platforms';
 import { isoDay } from '../platforms/http';
+import { MAX_HOURS, performanceReport } from '../performance';
 import { toAccountDTO } from './accounts';
 
 const TTL_MS = 5 * 60_000;
@@ -193,6 +194,14 @@ export async function topComments(): Promise<CommentsResponse> {
 }
 
 export function registerInsights(app: FastifyInstance) {
+  // Newest video against the ones before it, hour by hour.
+  app.get<{ Querystring: { accountId?: string; hours?: string } }>('/api/performance', async (req, reply): Promise<PerformanceReport | void> => {
+    const account = req.query.accountId ? db.select().from(schema.accounts).where(eq(schema.accounts.id, req.query.accountId)).get() : undefined;
+    if (!account) return reply.code(404).send({ error: 'Channel not found.' });
+    const hours = Math.min(MAX_HOURS, Math.max(1, Math.round(Number(req.query.hours) || 24)));
+    return performanceReport(account, hours);
+  });
+
   app.get<{ Querystring: { days?: string; refresh?: string } }>('/api/analytics', async (req) => {
     if (req.query.refresh) clearCache();
     return accountAnalytics([7, 28].includes(Number(req.query.days)) ? Number(req.query.days) : 28);

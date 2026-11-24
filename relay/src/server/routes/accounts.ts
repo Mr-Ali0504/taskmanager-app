@@ -11,6 +11,7 @@ import { env, googleConfigured, metaConfigured } from '../env';
 import { qs, requestJson } from '../platforms/http';
 import { GRAPH } from '../platforms/meta';
 import { log, logError } from '../log';
+import { forgetAccount } from '../performance';
 import { clearCache } from './insights';
 
 const { accounts } = schema;
@@ -111,6 +112,7 @@ export function registerAccounts(app: FastifyInstance) {
   app.delete<{ Params: { id: string } }>('/api/accounts/:id', async (req) => {
     db.delete(accounts).where(eq(accounts.id, req.params.id)).run();
     db.delete(schema.snapshots).where(eq(schema.snapshots.accountId, req.params.id)).run();
+    forgetAccount(req.params.id);
     clearCache();
     return { ok: true };
   });

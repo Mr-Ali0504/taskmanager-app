@@ -12,6 +12,7 @@ import type { AssistantTurn, PendingAction, RemoteComment } from '../shared/type
 import { newId } from './crypto';
 import { db, schema } from './db';
 import { agentModel } from './env';
+import { MAX_HOURS, performanceReport } from './performance';
 import { adapterFor } from './platforms';
 import { videoMeta } from './publisher';
 import { accountAnalytics, topComments, weeklyReport } from './routes/insights';
@@ -59,6 +60,10 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
     days: { type: 'integer', enum: [7, 28], description: 'Length of the period in days.' },
   }),
   tool('get_weekly_report', 'Performance of the last 7 days against the 7 days before it, per channel, with changes already calculated: audience, views or reach, videos published this week and how they compare with earlier ones. Use this for reviews, summaries and "what is working" questions.', {}),
+  tool('get_video_performance', 'How the newest video on one channel is doing against the three before it at the same age, hour by hour, with a breakout estimate. Use this for "how is my latest reel doing" or "will it go viral".', {
+    account_id: { ...str, description: 'Channel id from list_channels.' },
+    hours: { type: 'integer', description: 'Compare within the first this-many hours after publishing (1 to 168). Use 24 unless the user names a window.' },
+  }),
   tool('list_comments', 'Comments on the five most recent videos of each channel, most-liked first. Returns comment ids needed for replying.', {
     account_id: { type: ['string', 'null'], description: 'Limit to one channel id, or null for all channels.' },
   }),
@@ -139,6 +144,22 @@ async function runReadTool(convo: Conversation, name: string, input: any): Promi
     }
     case 'get_weekly_report':
       return { note: 'Compared this week with last week', result: await weeklyReport() };
+    case 'get_video_performance': {
+      const account = db.select().from(schema.accounts).where(eq(schema.accounts.id, String(input.account_id))).get();
+      if (!account) throw new Error('No channel with that id. Call list_channels.');
+      const report = await performanceReport(account, Math.min(MAX_HOURS, Math.max(1, Math.round(Number(input.hours) || 24))));
+      const brief = (v: NonNullable<typeof report.latest>) => ({ title: v.title, published: new Date(v.publishedAt).toISOString(), hours_since_publishing: Math.round(v.ageHours * 10) / 10, now: v.current, first_hours_recorded: v.trackedFromHour != null && v.trackedFromHour <= 3 });
+      return {
+        note: 'Compared your newest video with the earlier ones',
+        result: {
+          channel: account.name, platform: account.platform, sample_data: account.demo, error: report.error,
+          newest: report.latest ? brief(report.latest) : null,
+          earlier: report.previous.map(brief),
+          estimate: report.verdict,
+          how_to_read: 'estimate.level is breakout, ahead, typical, below or unknown, judged against this channel\'s own earlier videos at the same age. It is an estimate from history, not a platform prediction; never state a percentage chance. estimate.reasons are ready-made sentences with the figures. If level is unknown, explain why using the first reason.',
+        },
+      };
+    }
     case 'list_comments': {
       const { comments, errors } = await topComments();
       const list = comments.filter((c) => !input.account_id || c.accountId === input.account_id).slice(0, 40);

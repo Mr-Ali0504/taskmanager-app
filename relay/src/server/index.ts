@@ -9,6 +9,7 @@ import { registerAuth } from './auth';
 import { runMigrations } from './db';
 import { agentConfigured, agentModel, env, googleConfigured, metaConfigured } from './env';
 import { log, logError } from './log';
+import { sampleAllAccounts } from './performance';
 import { startScheduler } from './publisher';
 import { registerAccounts } from './routes/accounts';
 import { recordAllSnapshots, registerInsights } from './routes/insights';
@@ -74,6 +75,9 @@ startScheduler(log);
 // Record each channel's audience shortly after start and then every six hours.
 setTimeout(() => void recordAllSnapshots(), 30_000);
 setInterval(() => void recordAllSnapshots(), 6 * 3600_000);
+// Read every recent video's numbers each half hour, to build its hour-by-hour curve.
+setTimeout(() => void sampleAllAccounts(), 60_000);
+setInterval(() => void sampleAllAccounts(), 30 * 60_000);
 await app.listen({ port: env.port, host: env.host });
 console.log(`Relay Studio API listening on http://${env.host}:${env.port}`);
 log(`Started. Open ${env.publicUrl}  |  YouTube keys: ${googleConfigured() ? 'yes' : 'no'}, Meta keys: ${metaConfigured() ? 'yes' : 'no'}, assistant: ${agentConfigured() ? agentModel() : 'off'}  |  data folder: ${env.dataDir}`);

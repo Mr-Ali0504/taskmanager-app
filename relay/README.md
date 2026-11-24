@@ -13,6 +13,7 @@ Upload a video once and publish it to **YouTube, Instagram and Facebook** in one
 | **Posts** | Upload progress per channel, links to the published videos, retry for anything that failed, drafts, search, and "Post again" to reuse an earlier post. |
 | **Library** | Every video you uploaded, ready to publish again without re-uploading. |
 | **Analytics** | Audience and its growth over time, daily views/reach per channel, a sortable video table with engagement rate, per-channel filter and CSV export. |
+| **Performance** | Your newest video against the three before it, hour by hour since each was published, for views, likes, comments and shares, within any window from 1 to 72 hours. Includes an estimate of whether it is breaking out, judged against your own earlier videos at the same age. |
 | **Comments** | Comments on your recent videos across all channels, with search, sorting and replies. |
 | **Channels** | Connect and disconnect accounts. A demo mode adds sample channels so you can look around before setting up API keys. |
 
@@ -160,6 +161,7 @@ Add `ANTHROPIC_API_KEY` to `.env` (create a key in the Claude Console) and resta
 - **Tokens** are encrypted (AES-256-GCM) before being saved. The key is `APP_SECRET`, or a generated `data/secret.key`. Back up the `data` folder to keep your connections, library and history.
 - **Demo channels** never contact any platform. Their numbers are made up.
 - **Audience growth** is recorded by this app once the channel is connected (the platforms do not provide follower history), so that chart starts empty and fills in day by day while the app runs.
+- **Hour-by-hour figures** on the Performance page come from the app's own readings, taken every half hour while it is running, because the platforms report only running totals. A video's first hours are recorded only if the app was running and the channel was connected when it was published; earlier videos show "not recorded". The breakout estimate needs at least two earlier videos recorded at the same age.
 - Statistics are cached for five minutes to stay inside API quotas; the refresh button fetches fresh numbers.
 - Instagram reports daily *reach* rather than daily views, so the trend chart labels that line accordingly.
 

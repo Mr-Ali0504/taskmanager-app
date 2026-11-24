@@ -1,4 +1,4 @@
-import { BarChart3, CalendarDays, Clapperboard, LayoutDashboard, ListChecks, Sparkles, LogOut, MessageSquare, Moon, Radio, Send, Sun } from 'lucide-react';
+import { BarChart3, CalendarDays, Clapperboard, LayoutDashboard, ListChecks, Sparkles, TrendingUp, LogOut, MessageSquare, Moon, Radio, Send, Sun } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Fragment, useCallback, useEffect, useState, type FormEvent } from 'react';
 import { actions, useAccounts, usePosts, useSession } from './api';
@@ -13,6 +13,7 @@ import { Comments } from './pages/Comments';
 import { Compose } from './pages/Compose';
 import { Dashboard } from './pages/Dashboard';
 import { Library } from './pages/Library';
+import { Performance } from './pages/Performance';
 import { Posts } from './pages/Posts';
 
 const NAV = [
@@ -23,6 +24,7 @@ const NAV = [
   { id: 'posts', label: 'Posts', icon: ListChecks, section: 'Content' },
   { id: 'library', label: 'Library', icon: Clapperboard, section: 'Content' },
   { id: 'analytics', label: 'Analytics', icon: BarChart3, section: 'Audience' },
+  { id: 'performance', label: 'Performance', icon: TrendingUp, section: 'Audience' },
   { id: 'comments', label: 'Comments', icon: MessageSquare, section: 'Audience' },
   { id: 'channels', label: 'Channels', icon: Radio, section: 'Setup' },
 ] as const;
@@ -155,6 +157,7 @@ export function App() {
     posts: <Posts go={go} setDraft={setDraft} />,
     library: <Library go={go} setDraft={setDraft} />,
     analytics: <Analytics go={go} onReview={review} />,
+    performance: <Performance go={go} />,
     comments: <Comments go={go} />,
     channels: <Channels session={session.data!} />,
   }[route];
