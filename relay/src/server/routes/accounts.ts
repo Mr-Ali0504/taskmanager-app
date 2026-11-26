@@ -138,11 +138,12 @@ export function registerAccounts(app: FastifyInstance) {
     for (const [key, expires] of states) if (expires < Date.now()) states.delete(key);
     states.set(state, Date.now() + 10 * 60_000);
 
+    // "select_account" makes Google show its account and channel chooser every time, so another channel can be added.
     if (provider === 'google' && googleConfigured()) {
       return {
         url: `https://accounts.google.com/o/oauth2/v2/auth?${qs({
           client_id: env.google.clientId, redirect_uri: redirectUri('google'), response_type: 'code', scope: GOOGLE_SCOPES,
-          access_type: 'offline', prompt: 'consent', include_granted_scopes: true, state,
+          access_type: 'offline', prompt: 'select_account consent', include_granted_scopes: true, state,
         })}`,
       };
     }
